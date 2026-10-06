@@ -44,6 +44,10 @@ class AuthController extends Controller
             return $this->loginMonitoringKepsek($request, $validated);
         }
 
+        if ($validated['app'] === 'laporan-cashless') {
+            return $this->loginLaporanCashless($request, $validated);
+        }
+
         $apiBaseUrl = $this->apiBaseUrlFor($validated['app']);
 
         $payload = [
@@ -239,11 +243,59 @@ class AuthController extends Controller
             ->with('login_error', $message);
     }
 
+    private function loginLaporanCashless(Request $request, array $validated)
+    {
+        try {
+            $response = Http::timeout(15)
+                ->acceptJson()
+                ->asJson()
+                ->post(self::API_BASE_URL_MONITORING_KEPSEK, [
+                    'method'   => 'loginCashless',
+                    'username' => $validated['username'],
+                    'password' => $validated['password'],
+                ]);
+
+            Log::info('Laporan Cashless login response', [
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Laporan Cashless login error', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return back()
+                ->withInput($request->except('password'))
+                ->with('login_error', 'Tidak dapat terhubung ke server. Silakan coba lagi.');
+        }
+
+        $data = $response->json();
+
+        if (($data['status'] ?? 0) === 200 && ! empty($data['data']['token'])) {
+            $request->session()->put('user', [
+                'username' => $validated['username'],
+                'nama'     => $data['data']['nama'] ?? $validated['username'],
+                'app'      => 'laporan-cashless',
+                'token'    => $data['data']['token'],
+            ]);
+
+            return redirect()
+                ->route('laporan-cashless')
+                ->with('login_success', 'Login berhasil.');
+        }
+
+        $message = $data['message'] ?? 'Login gagal. Akses Ditolak.';
+
+        return back()
+            ->withInput($request->except('password'))
+            ->with('login_error', $message);
+    }
+
     private function apiBaseUrlFor(?string $app): string
     {
         return match ($app) {
             'presensi-sholat'   => self::API_BASE_URL_PRESENSI_SHOLAT,
-            'monitoring-kepsek' => self::API_BASE_URL_MONITORING_KEPSEK,
+            'monitoring-kepsek', 'laporan-cashless' => self::API_BASE_URL_MONITORING_KEPSEK,
             default             => self::API_BASE_URL_PERIZINAN,
         };
     }
@@ -253,6 +305,7 @@ class AuthController extends Controller
         return match ($app) {
             'presensi-sholat'   => 'dashboard.presensi-sholat',
             'monitoring-kepsek' => 'dashboard.monitoring-kepsek',
+            'laporan-cashless'  => 'laporan-cashless',
             default             => 'dashboard',
         };
     }

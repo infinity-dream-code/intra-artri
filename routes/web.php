@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ImportPenagihanController;
 use App\Http\Controllers\KelolaUserController;
+use App\Http\Controllers\LaporanCashlessController;
 use App\Http\Controllers\MonitoringKepsekController;
 use App\Http\Controllers\PerizinanController;
 use App\Http\Controllers\PresensiSholatController;
@@ -71,6 +72,13 @@ Route::middleware(['check.auth'])->group(function () {
     Route::get('/kepsek/import-penagihan/data', [ImportPenagihanController::class, 'data'])->name('kepsek.import-penagihan.data');
     Route::get('/kepsek/import-penagihan/template', [ImportPenagihanController::class, 'downloadTemplate'])->name('kepsek.import-penagihan.template');
     Route::post('/kepsek/import-penagihan', [ImportPenagihanController::class, 'import'])->name('kepsek.import-penagihan.store');
+
+    Route::get('/laporan-cashless', [LaporanCashlessController::class, 'show'])->name('laporan-cashless');
+    Route::get('/laporan-cashless/filters', [LaporanCashlessController::class, 'filters'])->name('laporan-cashless.filters');
+    Route::get('/laporan-cashless/data', [LaporanCashlessController::class, 'data'])->name('laporan-cashless.data');
+    Route::get('/laporan-cashless/summary', [LaporanCashlessController::class, 'summary'])->name('laporan-cashless.summary');
+    Route::get('/laporan-cashless/export-excel', [LaporanCashlessController::class, 'exportExcel'])->name('laporan-cashless.export-excel');
+    Route::get('/laporan-cashless/export-pdf', [LaporanCashlessController::class, 'exportPdf'])->name('laporan-cashless.export-pdf');
 
     Route::get('/presensi-sholat/qr', [PresensiSholatController::class, 'showQr'])->name('presensi-sholat.qr');
     Route::post('/presensi-sholat/post-sholat', [PresensiSholatController::class, 'postSholat'])->name('presensi-sholat.post-sholat');

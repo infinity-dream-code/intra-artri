@@ -241,6 +241,9 @@
                             <option value="monitoring-kepsek" {{ old('app') === 'monitoring-kepsek' ? 'selected' : '' }}>
                                 Aplikasi Monitoring Keuangan Santri
                             </option>
+                            <option value="laporan-cashless" {{ old('app') === 'laporan-cashless' ? 'selected' : '' }}>
+                                Aplikasi Laporan Cashless
+                            </option>
                         </select>
                     </div>
                 </div>
