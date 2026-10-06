@@ -2634,8 +2634,8 @@ function loginCashless(array $req): void
 
     $stmt = $pdo->prepare("
         SELECT *
-        FROM Sm_kantin
-        WHERE USERNAME = :username
+        FROM cyber_key
+        WHERE users = :username
         LIMIT 1
     ");
     $stmt->bindValue(":username", $username, PDO::PARAM_STR);
@@ -2643,29 +2643,29 @@ function loginCashless(array $req): void
     $user = $stmt->fetch();
 
     if (!$user || !is_array($user)) {
-        // Fallback untuk kolom lowercase
-        try {
-            $stmt2 = $pdo->prepare("SELECT * FROM Sm_kantin WHERE username = :username LIMIT 1");
-            $stmt2->bindValue(":username", $username, PDO::PARAM_STR);
-            $stmt2->execute();
-            $user = $stmt2->fetch();
-        } catch (Throwable $e) {
-            $user = false;
-        }
-    }
-
-    if (!$user || !is_array($user)) {
         http_response_code(401);
         echo json_encode(["status" => 401, "message" => "Username atau password salah"], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
-    $passwordHash = (string) cashlessRowValue($user, ["PASSWORD", "password", "Password"], "");
-    if (!verifyCashlessPassword($password, $passwordHash)) {
+    $passwordHash = (string) cashlessRowValue($user, ["password", "PASSWORD"], "");
+    $kunci = (string) cashlessRowValue($user, ["kunci", "KUNCI"], "");
+    $valid = false;
+
+    if ($passwordHash !== "") {
+        $valid = verifyCashlessPassword($password, $passwordHash);
+    }
+    if (!$valid && $kunci !== "") {
+        $valid = verifyCashlessPassword($password, $kunci);
+    }
+
+    if (!$valid) {
         http_response_code(401);
         echo json_encode(["status" => 401, "message" => "Username atau password salah"], JSON_UNESCAPED_UNICODE);
         exit;
     }
+
+    $kel = strtolower(trim((string) cashlessRowValue($user, ["kel", "KEL"], "")));
 
     $key = (string) ($_ENV["JWT_KEY"] ?? "");
     if ($key === "") {
@@ -2674,14 +2674,15 @@ function loginCashless(array $req): void
         exit;
     }
 
-    $uname = (string) cashlessRowValue($user, ["USERNAME", "username"], $username);
-    $nama = (string) cashlessRowValue($user, ["NAMA", "nama", "NAME", "name"], $uname);
-    $userId = cashlessRowValue($user, ["idincrement", "ID", "id", "CUSTID", "urut"], $uname);
+    $uname = (string) cashlessRowValue($user, ["users", "USERS", "username"], $username);
+    $nama = (string) cashlessRowValue($user, ["ket", "KET", "nama", "NAMA"], $uname);
+    $userId = cashlessRowValue($user, ["urut", "URUT", "id", "ID"], $uname);
 
     $payload = [
         "user_id"  => $userId,
         "username" => $uname,
         "nama"     => $nama,
+        "kel"      => $kel,
         "app"      => "laporan-cashless",
         "iat"      => time(),
         "exp"      => time() + 86400,
@@ -2698,6 +2699,7 @@ function loginCashless(array $req): void
             "token"    => $token,
             "nama"     => $nama,
             "username" => $uname,
+            "kel"      => $kel,
         ]
     ], JSON_UNESCAPED_UNICODE);
     exit;
@@ -2718,7 +2720,7 @@ function buildCashlessFilterSql(array $req, array &$params): string
 {
     $sql = "";
 
-    // Kunci data per user login (Sm_kantin.USERNAME = scctcashout.Teller)
+    // Kunci data per user login (cyber_key.users = scctcashout.Teller)
     // Client tidak bisa override untuk melihat teller lain.
     $lockedTeller = resolveCashlessTellerUsername($req);
     $sql .= " AND o.Teller = :locked_teller ";

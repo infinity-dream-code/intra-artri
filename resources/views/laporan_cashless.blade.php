@@ -249,7 +249,7 @@
             <div class="drawer-logo"><img src="{{ asset('logo.png') }}" alt="Logo"></div>
             <div>
                 <div class="drawer-user-name">{{ session('user.nama', session('user.username')) }}</div>
-                <div class="drawer-user-role">Kantin / Cashless</div>
+                <div class="drawer-user-role">{{ session('user.kel') ? ucfirst(session('user.kel')) : 'Cashless' }}</div>
             </div>
         </div>
         <button type="button" class="drawer-close" id="drawerClose" aria-label="Tutup menu" title="Tutup">

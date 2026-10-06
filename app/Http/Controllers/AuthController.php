@@ -273,8 +273,9 @@ class AuthController extends Controller
 
         if (($data['status'] ?? 0) === 200 && ! empty($data['data']['token'])) {
             $request->session()->put('user', [
-                'username' => $validated['username'],
+                'username' => $data['data']['username'] ?? $validated['username'],
                 'nama'     => $data['data']['nama'] ?? $validated['username'],
+                'kel'      => $data['data']['kel'] ?? '',
                 'app'      => 'laporan-cashless',
                 'token'    => $data['data']['token'],
             ]);
