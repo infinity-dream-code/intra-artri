@@ -40,91 +40,115 @@ class LaporanCashlessController extends Controller
 
     public function filters()
     {
-        if ($resp = $this->guardApi()) {
-            return $resp;
-        }
+        try {
+            if ($resp = $this->guardApi()) {
+                return $resp;
+            }
 
-        $result = $this->callWs('getCashlessFilterOptions', [], 20);
-        if (($result['status'] ?? 0) !== 200) {
+            $result = $this->callWs('getCashlessFilterOptions', [], 20);
+            if (($result['status'] ?? 0) !== 200) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $result['message'] ?? 'Gagal mengambil data filter',
+                ], 422);
+            }
+
+            return response()->json([
+                'success' => true,
+                'sekolah' => $result['data']['sekolah'] ?? [],
+                'kelas' => $result['data']['kelas'] ?? [],
+                'keterangan' => $result['data']['keterangan'] ?? [],
+                'locked_teller' => $result['data']['locked_teller'] ?? session('user.username', ''),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Laporan Cashless filters error', ['message' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'message' => $result['message'] ?? 'Gagal mengambil data filter',
-            ], 422);
+                'message' => 'Gagal memuat filter: ' . $e->getMessage(),
+            ], 500);
         }
-
-        return response()->json([
-            'success' => true,
-            'sekolah' => $result['data']['sekolah'] ?? [],
-            'kelas' => $result['data']['kelas'] ?? [],
-            'keterangan' => $result['data']['keterangan'] ?? [],
-            'locked_teller' => $result['data']['locked_teller'] ?? session('user.username', ''),
-        ]);
     }
 
     public function data(Request $request)
     {
-        if ($resp = $this->guardApi()) {
-            return $resp;
-        }
+        try {
+            if ($resp = $this->guardApi()) {
+                return $resp;
+            }
 
-        $limit = max(1, min((int) $request->query('limit', 50), 500));
-        $page = max((int) $request->query('page', 1), 1);
-        $offset = ($page - 1) * $limit;
+            $limit = max(1, min((int) $request->query('limit', 50), 500));
+            $page = max((int) $request->query('page', 1), 1);
+            $offset = ($page - 1) * $limit;
 
-        $filterParams = $this->buildFilterParams($request);
-        $result = $this->callWs('getCashlessData', array_merge($filterParams, [
-            'limit' => $limit,
-            'offset' => $offset,
-        ]), 55);
-
-        if (($result['status'] ?? 0) !== 200) {
-            return response()->json([
-                'success' => false,
-                'message' => $result['message'] ?? 'Gagal mengambil data transaksi',
-            ], 422);
-        }
-
-        $rows = $result['data'] ?? [];
-        $count = count($rows);
-
-        return response()->json([
-            'success' => true,
-            'data' => $rows,
-            'pagination' => [
-                'page' => $page,
+            $filterParams = $this->buildFilterParams($request);
+            $result = $this->callWs('getCashlessData', array_merge($filterParams, [
                 'limit' => $limit,
                 'offset' => $offset,
-                'count' => $count,
-                'has_more' => $count >= $limit,
-                'from' => $count > 0 ? $offset + 1 : 0,
-                'to' => $offset + $count,
-            ],
-        ]);
+            ]), 55);
+
+            if (($result['status'] ?? 0) !== 200) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $result['message'] ?? 'Gagal mengambil data transaksi',
+                ], 422);
+            }
+
+            $rows = $result['data'] ?? [];
+            $count = count($rows);
+
+            return response()->json([
+                'success' => true,
+                'data' => $rows,
+                'pagination' => [
+                    'page' => $page,
+                    'limit' => $limit,
+                    'offset' => $offset,
+                    'count' => $count,
+                    'has_more' => $count >= $limit,
+                    'from' => $count > 0 ? $offset + 1 : 0,
+                    'to' => $offset + $count,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Laporan Cashless data error', ['message' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memuat data: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function summary(Request $request)
     {
-        if ($resp = $this->guardApi()) {
-            return $resp;
-        }
+        try {
+            if ($resp = $this->guardApi()) {
+                return $resp;
+            }
 
-        $filterParams = $this->buildFilterParams($request);
-        $result = $this->callWs('getCashlessSummary', $filterParams, 55);
+            $filterParams = $this->buildFilterParams($request);
+            $result = $this->callWs('getCashlessSummary', $filterParams, 55);
 
-        if (($result['status'] ?? 0) !== 200) {
+            if (($result['status'] ?? 0) !== 200) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $result['message'] ?? 'Gagal mengambil ringkasan',
+                ], 422);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $result['data'] ?? [
+                    'total_transaksi' => 0,
+                    'total_jumlah' => 0,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Laporan Cashless summary error', ['message' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'message' => $result['message'] ?? 'Gagal mengambil ringkasan',
-            ], 422);
+                'message' => 'Gagal memuat ringkasan: ' . $e->getMessage(),
+            ], 500);
         }
-
-        return response()->json([
-            'success' => true,
-            'data' => $result['data'] ?? [
-                'total_transaksi' => 0,
-                'total_jumlah' => 0,
-            ],
-        ]);
     }
 
     public function exportExcel(Request $request)
@@ -329,16 +353,33 @@ class LaporanCashlessController extends Controller
                 ->timeout($timeout)
                 ->acceptJson()
                 ->asJson()
+                ->withHeaders(['Accept' => 'application/json'])
                 ->post(self::API_URL, $body);
 
-            $json = $response->json();
+            $raw = (string) $response->body();
+            $json = json_decode($raw, true);
+
             if (is_array($json)) {
                 return $json;
             }
 
+            $head = strtolower(substr(ltrim($raw), 0, 80));
+            Log::warning('Laporan Cashless WS non-JSON', [
+                'method' => $method,
+                'http' => $response->status(),
+                'body_preview' => substr($raw, 0, 300),
+            ]);
+
+            if (str_contains($head, '<!doctype') || str_contains($head, '<html')) {
+                return [
+                    'status' => 500,
+                    'message' => 'WS mengembalikan HTML (method cashless mungkin belum di-deploy ke server WS, atau ada error PHP di ws.php).',
+                ];
+            }
+
             return [
-                'status' => $response->status(),
-                'message' => 'Respons server tidak valid',
+                'status' => $response->status() ?: 500,
+                'message' => 'Respons server WS tidak valid (bukan JSON).',
             ];
         } catch (\Throwable $e) {
             Log::error('Laporan Cashless WS error', [
@@ -346,7 +387,7 @@ class LaporanCashlessController extends Controller
                 'message' => $e->getMessage(),
             ]);
 
-            return ['status' => 500, 'message' => 'Tidak dapat terhubung ke server'];
+            return ['status' => 500, 'message' => 'Tidak dapat terhubung ke server WS: ' . $e->getMessage()];
         }
     }
 }

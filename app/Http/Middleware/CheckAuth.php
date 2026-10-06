@@ -16,6 +16,12 @@ class CheckAuth
     public function handle(Request $request, Closure $next): Response
     {
         if (!session()->has('user') || !session('user.username')) {
+            if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Sesi berakhir. Silakan login ulang.',
+                ], 401);
+            }
             return redirect()->route('login.form');
         }
 

@@ -302,6 +302,38 @@ function formatTanggal(v) {
     return s.length > 19 ? s.slice(0, 19) : s;
 }
 
+async function parseJsonResponse(res) {
+    const text = await res.text();
+    let json = null;
+    try {
+        json = text ? JSON.parse(text) : {};
+    } catch (e) {
+        const head = String(text || '').slice(0, 300).toLowerCase();
+        if (res.status === 401 || res.status === 419 || head.includes('login') || head.includes('csrf')) {
+            throw new Error('Sesi berakhir atau tidak valid. Silakan login ulang.');
+        }
+        if (res.status === 404) {
+            throw new Error('Endpoint tidak ditemukan (404). Cek deploy route/controller.');
+        }
+        if (res.status >= 500) {
+            throw new Error('Server error (HTTP ' + res.status + '). Biasanya ws.php cashless belum di-deploy atau ada error PHP di server.');
+        }
+        throw new Error('Respons bukan JSON (HTTP ' + res.status + '). Session habis atau route belum ter-deploy.');
+    }
+    if (!res.ok && json && json.success === false) {
+        throw new Error(json.message || ('Gagal memuat data (HTTP ' + res.status + ')'));
+    }
+    return json || {};
+}
+
+function apiHeaders(extra = {}) {
+    return {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        ...extra,
+    };
+}
+
 function getFilters() {
     return {
         tgl_dari: document.getElementById('filterTglDari').value || todayStr(),
@@ -347,8 +379,8 @@ function fillSelect(el, items, allLabel, valueKey = 'value', labelKey = 'label')
 
 async function loadFilters() {
     try {
-        const res = await fetch(routes.filters, { headers: { 'Accept': 'application/json' } });
-        const json = await res.json();
+        const res = await fetch(routes.filters, { headers: apiHeaders(), cache: 'no-cache' });
+        const json = await parseJsonResponse(res);
         if (!json.success) throw new Error(json.message || 'Gagal memuat filter');
         fillSelect(document.getElementById('filterSekolah'), json.sekolah || [], 'Semua sekolah/unit');
         fillSelect(document.getElementById('filterKelas'), json.kelas || [], 'Semua kelas');
@@ -373,8 +405,8 @@ async function loadSummary() {
     summaryPeriod.textContent = `${f.tgl_dari} s/d ${f.tgl_sampai}`;
 
     try {
-        const res = await fetch(routes.summary + '?' + buildQuery(), { headers: { 'Accept': 'application/json' } });
-        const json = await res.json();
+        const res = await fetch(routes.summary + '?' + buildQuery(), { headers: apiHeaders() });
+        const json = await parseJsonResponse(res);
         if (!json.success) throw new Error(json.message || 'Gagal ringkasan');
         const d = json.data || {};
         sumTransaksi.textContent = Number(d.total_transaksi || 0).toLocaleString('id-ID');
@@ -401,8 +433,8 @@ async function loadData(resetPage = false) {
 
     try {
         const qs = buildQuery({ page: currentPage, limit: pageSize });
-        const res = await fetch(routes.data + '?' + qs, { headers: { 'Accept': 'application/json' } });
-        const json = await res.json();
+        const res = await fetch(routes.data + '?' + qs, { headers: apiHeaders() });
+        const json = await parseJsonResponse(res);
         if (!json.success) throw new Error(json.message || 'Gagal memuat data');
 
         const rows = json.data || [];
