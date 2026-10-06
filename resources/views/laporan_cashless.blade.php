@@ -124,7 +124,7 @@
             <div class="filter-top">
                 <div>
                     <h2>Filter</h2>
-                    <p>Sesuaikan periode, unit, kelas, teller, dan keterangan.</p>
+                    <p>Sesuaikan periode, unit, kelas, dan keterangan. Data dikunci ke akun login Anda.</p>
                 </div>
                 <button type="button" class="filter-toggle" id="filterToggle">
                     <span id="filterToggleText">Sembunyikan</span>
@@ -143,16 +143,16 @@
                         <input type="date" id="filterTglSampai">
                     </div>
                     <div class="field">
+                        <label for="lockedTeller">Teller (akun Anda)</label>
+                        <input type="text" id="lockedTeller" value="{{ session('user.username', '') }}" readonly style="background:#f1f5f9;color:#64748b;">
+                    </div>
+                    <div class="field">
                         <label for="filterSekolah">Sekolah / Unit</label>
                         <select id="filterSekolah"><option value="">Semua sekolah/unit</option></select>
                     </div>
                     <div class="field">
                         <label for="filterKelas">Kelas / Program</label>
                         <select id="filterKelas"><option value="">Semua kelas</option></select>
-                    </div>
-                    <div class="field">
-                        <label for="filterTeller">Teller</label>
-                        <select id="filterTeller"><option value="">Semua teller</option></select>
                     </div>
                     <div class="field">
                         <label for="filterKeterangan">Keterangan</label>
@@ -308,7 +308,6 @@ function getFilters() {
         tgl_sampai: document.getElementById('filterTglSampai').value || todayStr(),
         sekolah: document.getElementById('filterSekolah').value || '',
         kelas: document.getElementById('filterKelas').value || '',
-        teller: document.getElementById('filterTeller').value || '',
         keterangan: document.getElementById('filterKeterangan').value || '',
         search: document.getElementById('filterSearch').value.trim() || '',
     };
@@ -353,8 +352,10 @@ async function loadFilters() {
         if (!json.success) throw new Error(json.message || 'Gagal memuat filter');
         fillSelect(document.getElementById('filterSekolah'), json.sekolah || [], 'Semua sekolah/unit');
         fillSelect(document.getElementById('filterKelas'), json.kelas || [], 'Semua kelas');
-        fillSelect(document.getElementById('filterTeller'), json.teller || [], 'Semua teller');
         fillSelect(document.getElementById('filterKeterangan'), json.keterangan || [], 'Semua keterangan');
+        if (json.locked_teller) {
+            document.getElementById('lockedTeller').value = json.locked_teller;
+        }
     } catch (e) {
         console.error(e);
         Swal.fire({ icon: 'error', title: 'Filter', text: e.message || 'Gagal memuat filter' });
@@ -488,7 +489,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('filterTglSampai').value = today;
         document.getElementById('filterSekolah').value = '';
         document.getElementById('filterKelas').value = '';
-        document.getElementById('filterTeller').value = '';
         document.getElementById('filterKeterangan').value = '';
         document.getElementById('filterSearch').value = '';
         refreshAll(true);

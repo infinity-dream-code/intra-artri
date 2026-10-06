@@ -2703,9 +2703,26 @@ function loginCashless(array $req): void
     exit;
 }
 
+function resolveCashlessTellerUsername(array $req): string
+{
+    $username = trim((string) ($req["username"] ?? ""));
+    if ($username === "") {
+        http_response_code(401);
+        echo json_encode(["status" => 401, "message" => "Sesi teller tidak valid"], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    return $username;
+}
+
 function buildCashlessFilterSql(array $req, array &$params): string
 {
     $sql = "";
+
+    // Kunci data per user login (Sm_kantin.USERNAME = scctcashout.Teller)
+    // Client tidak bisa override untuk melihat teller lain.
+    $lockedTeller = resolveCashlessTellerUsername($req);
+    $sql .= " AND o.Teller = :locked_teller ";
+    $params[":locked_teller"] = $lockedTeller;
 
     $tglDari = trim((string) ($req["tgl_dari"] ?? $req["tanggal_dari"] ?? ""));
     $tglSampai = trim((string) ($req["tgl_sampai"] ?? $req["tanggal_sampai"] ?? ""));
@@ -2756,12 +2773,6 @@ function buildCashlessFilterSql(array $req, array &$params): string
         $sql .= " AND c.DESC02 IN (" . implode(",", $ph) . ") ";
     }
 
-    $teller = trim((string) ($req["teller"] ?? ""));
-    if ($teller !== "") {
-        $sql .= " AND o.Teller = :teller ";
-        $params[":teller"] = $teller;
-    }
-
     $keterangan = trim((string) ($req["keterangan"] ?? ""));
     if ($keterangan !== "") {
         $sql .= " AND o.KETERANGAN = :keterangan ";
@@ -2783,6 +2794,7 @@ function buildCashlessFilterSql(array $req, array &$params): string
 function getCashlessFilterOptions(array $req): void
 {
     $pdo = dbConnectPdo();
+    $lockedTeller = resolveCashlessTellerUsername($req);
 
     $sekolah = [];
     try {
@@ -2832,29 +2844,18 @@ function getCashlessFilterOptions(array $req): void
         }
     }
 
-    $teller = [];
-    $stmtTeller = $pdo->query("
-        SELECT DISTINCT Teller AS value
-        FROM scctcashout
-        WHERE Teller IS NOT NULL AND Teller != ''
-        ORDER BY Teller ASC
-        LIMIT 200
-    ");
-    foreach ($stmtTeller->fetchAll() as $row) {
-        $val = trim((string) ($row["value"] ?? ""));
-        if ($val !== "") {
-            $teller[] = $val;
-        }
-    }
-
+    // Hanya keterangan dari transaksi teller yang sedang login
     $keterangan = [];
-    $stmtKet = $pdo->query("
+    $stmtKet = $pdo->prepare("
         SELECT DISTINCT KETERANGAN AS value
         FROM scctcashout
-        WHERE KETERANGAN IS NOT NULL AND KETERANGAN != ''
+        WHERE Teller = :teller
+          AND KETERANGAN IS NOT NULL AND KETERANGAN != ''
         ORDER BY KETERANGAN ASC
         LIMIT 200
     ");
+    $stmtKet->bindValue(":teller", $lockedTeller, PDO::PARAM_STR);
+    $stmtKet->execute();
     foreach ($stmtKet->fetchAll() as $row) {
         $val = trim((string) ($row["value"] ?? ""));
         if ($val !== "") {
@@ -2868,8 +2869,9 @@ function getCashlessFilterOptions(array $req): void
         "data" => [
             "sekolah" => $sekolah,
             "kelas" => $kelas,
-            "teller" => $teller,
+            "teller" => [$lockedTeller],
             "keterangan" => $keterangan,
+            "locked_teller" => $lockedTeller,
         ],
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;

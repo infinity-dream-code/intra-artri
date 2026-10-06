@@ -56,8 +56,8 @@ class LaporanCashlessController extends Controller
             'success' => true,
             'sekolah' => $result['data']['sekolah'] ?? [],
             'kelas' => $result['data']['kelas'] ?? [],
-            'teller' => $result['data']['teller'] ?? [],
             'keterangan' => $result['data']['keterangan'] ?? [],
+            'locked_teller' => $result['data']['locked_teller'] ?? session('user.username', ''),
         ]);
     }
 
@@ -242,7 +242,7 @@ class LaporanCashlessController extends Controller
             'tgl_sampai' => $params['tgl_sampai'] ?? date('Y-m-d'),
             'sekolah' => $sekolah !== '' ? $sekolah : 'Semua sekolah/unit',
             'kelas' => $kelas !== '' ? $kelas : 'Semua kelas',
-            'teller' => $params['teller'] ?? 'Semua teller',
+            'teller' => (string) session('user.username', '-'),
             'keterangan' => $params['keterangan'] ?? 'Semua keterangan',
             'search' => $params['search'] ?? '-',
         ];
@@ -275,10 +275,7 @@ class LaporanCashlessController extends Controller
             $params['kelas'] = $kelas;
         }
 
-        $teller = trim((string) $request->query('teller', ''));
-        if ($teller !== '') {
-            $params['teller'] = $teller;
-        }
+        // Teller dikunci di WS dari JWT username — jangan terima override dari client
 
         $keterangan = trim((string) $request->query('keterangan', ''));
         if ($keterangan !== '') {
