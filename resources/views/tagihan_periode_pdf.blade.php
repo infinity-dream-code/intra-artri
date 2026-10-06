@@ -19,7 +19,7 @@
         th { background: #fef9c3; font-weight: bold; }
         .text-right { text-align: right; }
         .badge-lunas { color: #166534; }
-        .badge-belum { color: #991b1b; }
+        .badge-belum { background: #ef4444; color: #ffffff; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -58,6 +58,7 @@
             <th class="text-right">Total Terbayar</th>
             <th class="text-right">Sisa Tagihan</th>
             <th>Status</th>
+            <th>Keterangan</th>
         </tr>
     </thead>
     <tbody>
@@ -66,16 +67,17 @@
             <tr>
                 <td>{{ $i + 1 }}</td>
                 <td>{{ $row['nis'] ?? '-' }}</td>
-                <td>{{ $row['nama'] ?? '-' }}</td>
+                <td>{{ strtoupper($row['nama'] ?? '-') }}</td>
                 <td>{{ $row['kelas'] ?? '-' }}</td>
                 <td>{{ $row['sekolah'] ?? '-' }}</td>
                 <td class="text-right">{{ $fmtRupiah($row['total_tagihan'] ?? 0) }}</td>
                 <td class="text-right">{{ $fmtRupiah($row['total_terbayar'] ?? 0) }}</td>
                 <td class="text-right">{{ $fmtRupiah($row['sisa_tagihan'] ?? 0) }}</td>
                 <td class="{{ $paid ? 'badge-lunas' : 'badge-belum' }}">{{ $paid ? 'Lunas' : 'Belum Lunas' }}</td>
+                <td class="{{ $paid ? 'badge-lunas' : 'badge-belum' }}">{{ $paid ? 'Bisa Ujian' : 'Belum Bisa Ujian' }}</td>
             </tr>
         @empty
-            <tr><td colspan="9" style="text-align:center;">Tidak ada data</td></tr>
+            <tr><td colspan="10" style="text-align:center;">Tidak ada data</td></tr>
         @endforelse
     </tbody>
     <tfoot>
@@ -84,6 +86,7 @@
             <td class="text-right" style="font-weight:bold;">{{ $fmtRupiah($totals['total_tagihan'] ?? 0) }}</td>
             <td class="text-right" style="font-weight:bold;">{{ $fmtRupiah($totals['total_terbayar'] ?? 0) }}</td>
             <td class="text-right" style="font-weight:bold;">{{ $fmtRupiah($totals['total_piutang'] ?? 0) }}</td>
+            <td></td>
             <td></td>
         </tr>
     </tfoot>

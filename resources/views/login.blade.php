@@ -239,7 +239,7 @@
                                 Aplikasi Presensi Sholat
                             </option>
                             <option value="monitoring-kepsek" {{ old('app') === 'monitoring-kepsek' ? 'selected' : '' }}>
-                                Aplikasi Monitoring Kepala Sekolah
+                                Aplikasi Monitoring Keuangan Santri
                             </option>
                         </select>
                     </div>

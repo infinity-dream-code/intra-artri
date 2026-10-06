@@ -10,12 +10,11 @@ class AuthController extends Controller
 {
     private const API_BASE_URL_PERIZINAN = 'http://vps1.smartpayment.co.id:8888/Data/Malang_Arrohmah_Putri_Perizinan/WebAPI.php';
     private const API_BASE_URL_PRESENSI_SHOLAT = 'http://vps1.smartpayment.co.id:8888/Data/Malang_Arrohmah_Putri_PresensiSholat/WebAPI.php';
-    private const API_BASE_URL_MONITORING_KEPSEK = 'http://103.23.103.43/ws_client/Malang_Arrohmah_Putri_Kepsek_Monitoring/index.php';
+    private const API_BASE_URL_MONITORING_KEPSEK = 'http://10.99.23.111/ws_client/Malang_Arrohmah_Putri_Kepsek_Monitoring/index.php';
     private const JWT_SECRET = 'a7c2a8a9b3c4a5a6a7a8a9b0c1a2a3';
 
     public function showLogin()
     {
-        // Jika sudah login, redirect ke dashboard
         if (session()->has('user') && session('user.username')) {
             return redirect()->route($this->dashboardRouteName(session('user.app')));
         }
@@ -86,26 +85,19 @@ class AuthController extends Controller
         $data = $response->json();
 
         if (isset($data['KodeRespon']) && (int) $data['KodeRespon'] === 1) {
-            // Simpan username asli yang diinput saat login (untuk keperluan API calls seperti RequestNewPassword)
-            // API RequestNewPassword mengharapkan username asli, bukan yang dikembalikan API login
             $username = $validated['username'];
 
-            // Simpan informasi dasar user di session
             $request->session()->put('user', [
                 'username' => $username,
                 'app'      => $validated['app'],
             ]);
 
-            // Ambil jenis izin untuk dropdown setelah login berhasil
-            // SingleEntry = Perizinan Kedatangan/Kepulangan (Masuk/Keluar)
             $izinTypesSingle = $this->fetchIzinTypes('SingleEntryListRequest');
             $request->session()->put('izin_types_single', $izinTypesSingle);
 
-            // MultipleEntry = Perizinan Umum
             $izinTypesMultiple = $this->fetchIzinTypes('MultipleEntryListRequest');
             $request->session()->put('izin_types_multiple', $izinTypesMultiple);
 
-            // SpecialEntry = Perizinan Khusus
             $izinTypesSpecial = $this->fetchIzinTypes('SpecialEntryListRequest');
             $request->session()->put('izin_types_special', $izinTypesSpecial);
 
@@ -161,7 +153,6 @@ class AuthController extends Controller
             if ($response->ok()) {
                 $data = $response->json();
 
-                // Response format: [{ "KodeRespon": 1, "ListRespone": [...] }]
                 if (is_array($data) && isset($data[0]['ListRespone'])) {
                     return $data[0]['ListRespone'];
                 }
@@ -205,16 +196,39 @@ class AuthController extends Controller
         $data = $response->json();
 
         if (($data['status'] ?? 0) === 200 && ! empty($data['data']['token'])) {
+            $kelompok = trim((string) ($data['data']['kelompok'] ?? ''));
+            $kelompokNorm = strtolower($kelompok);
+            $humas = (int) ($data['data']['humas'] ?? 0);
+            if ($humas !== 1 && ($kelompokNorm === 'humas' || $kelompokNorm === '1')) {
+                $humas = 1;
+            }
+            $code01 = $data['data']['code01'] ?? null;
+            if (is_string($code01)) {
+                $code01 = trim($code01);
+                if ($code01 === '') {
+                    $code01 = null;
+                }
+            }
+
+            $isSuperadmin = $kelompokNorm === 'superadmin' ? 1 : 0;
+
             $request->session()->put('user', [
-                'username' => $validated['username'],
-                'nama'     => $data['data']['nama'] ?? $validated['username'],
-                'app'      => 'monitoring-kepsek',
-                'token'    => $data['data']['token'],
-                'code01'   => $data['data']['code01'] ?? null,
+                'username'      => $validated['username'],
+                'nama'          => $data['data']['nama'] ?? $validated['username'],
+                'app'           => 'monitoring-kepsek',
+                'token'         => $data['data']['token'],
+                'code01'        => $code01,
+                'kelompok'      => $kelompok,
+                'humas'         => $humas,
+                'is_superadmin' => $isSuperadmin,
             ]);
 
+            $redirectRoute = $humas === 1
+                ? 'kepsek.tagihan-periode'
+                : 'dashboard.monitoring-kepsek';
+
             return redirect()
-                ->route('dashboard.monitoring-kepsek')
+                ->route($redirectRoute)
                 ->with('login_success', 'Login berhasil.');
         }
 
@@ -284,15 +298,13 @@ class AuthController extends Controller
             'NEWPASSWORD2' => $validated['confirm_password'],
         ];
 
-        // Log payload untuk debugging
         Log::info('Ganti password payload', [
             'payload' => $payload,
             'payload_json' => json_encode($payload, JSON_UNESCAPED_SLASHES),
         ]);
 
         $token = $this->generateJwt($payload);
-        
-        // Decode token untuk verifikasi
+
         $parts = explode('.', $token);
         if (count($parts) === 3) {
             $decodedPayload = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
@@ -313,27 +325,22 @@ class AuthController extends Controller
                 'url_length' => strlen($url),
             ]);
 
-            // Coba GET dulu (sesuai dengan API lainnya)
             $response = Http::timeout(15)
                 ->get($url);
-            
-            // Jika GET gagal dengan 500, coba beberapa variasi POST
+
             if ($response->status() === 500 && empty($response->body())) {
                 Log::info('Trying POST method for ganti password');
-                
-                // Variasi 1: POST dengan token di query string (seperti GET)
+
                 $response = Http::timeout(15)
                     ->post($url);
-                
-                // Jika masih 500, coba variasi 2: POST dengan token di body sebagai form
+
                 if ($response->status() === 500 && empty($response->body())) {
                     Log::info('Trying POST with token in form body');
                     $response = Http::timeout(15)
                         ->asForm()
                         ->post($apiBaseUrl, ['token' => $token]);
                 }
-                
-                // Jika masih 500, coba variasi 3: POST dengan token di body sebagai JSON
+
                 if ($response->status() === 500 && empty($response->body())) {
                     Log::info('Trying POST with token in JSON body');
                     $response = Http::timeout(15)
@@ -353,10 +360,9 @@ class AuthController extends Controller
             if (!$response->ok()) {
                 $status = $response->status();
                 $body = $response->body();
-                
-                // Coba parse JSON response jika ada
+
                 $errorMsg = 'Terjadi kesalahan pada server (HTTP ' . $status . ').';
-                
+
                 if ($body) {
                     $jsonData = json_decode($body, true);
                     if (json_last_error() === JSON_ERROR_NONE && isset($jsonData['PesanRespon'])) {
@@ -365,24 +371,23 @@ class AuthController extends Controller
                         $errorMsg .= ' ' . substr($body, 0, 150);
                     }
                 } else {
-                    // HTTP 500 dengan body kosong biasanya berarti server error atau endpoint tidak tersedia
                     $errorMsg = 'Server API mengembalikan error tanpa pesan. Kemungkinan: password lama salah, endpoint tidak tersedia, atau server bermasalah. Silakan coba lagi atau hubungi administrator.';
                 }
-                
+
                 Log::error('Ganti password failed', [
                     'status' => $status,
                     'body' => $body,
                     'body_length' => strlen($body),
                     'username' => $username,
                 ]);
-                
+
                 return back()
                     ->withInput($request->except(['old_password', 'new_password', 'confirm_password']))
                     ->with('password_error', $errorMsg);
             }
 
             $data = $response->json();
-            
+
             Log::info('Ganti password response data', ['data' => $data]);
 
             if (isset($data['KodeRespon']) && (int) $data['KodeRespon'] === 1) {
@@ -393,7 +398,6 @@ class AuthController extends Controller
             return back()
                 ->withInput($request->except(['old_password', 'new_password', 'confirm_password']))
                 ->with('password_error', $message);
-
         } catch (\Throwable $e) {
             Log::error('Error changing password', [
                 'message' => $e->getMessage(),
@@ -404,4 +408,3 @@ class AuthController extends Controller
         }
     }
 }
-
