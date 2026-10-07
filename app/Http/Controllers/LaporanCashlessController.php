@@ -56,7 +56,7 @@ class LaporanCashlessController extends Controller
             return response()->json([
                 'success' => true,
                 'sekolah' => $result['data']['sekolah'] ?? [],
-                'kelas' => $result['data']['kelas'] ?? [],
+                'kelas' => [],
                 'keterangan' => $result['data']['keterangan'] ?? [],
                 'locked_teller' => $result['data']['locked_teller'] ?? session('user.username', ''),
             ]);
@@ -64,8 +64,73 @@ class LaporanCashlessController extends Controller
             Log::error('Laporan Cashless filters error', ['message' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal memuat filter: ' . $e->getMessage(),
+                'message' => 'Gagal memuat filter',
             ], 500);
+        }
+    }
+
+    public function kelasBySekolah(Request $request)
+    {
+        try {
+            if ($resp = $this->guardApi()) {
+                return $resp;
+            }
+
+            $sekolah = $this->normalizeMultiValue($request->query('sekolah', []));
+            if (empty($sekolah)) {
+                return response()->json(['success' => true, 'data' => []]);
+            }
+
+            $result = $this->callWs('getCashlessKelasBySekolah', ['sekolah' => $sekolah], 20);
+            if (($result['status'] ?? 0) !== 200) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $result['message'] ?? 'Gagal mengambil kelas',
+                ], 422);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $result['data'] ?? [],
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Laporan Cashless kelas error', ['message' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Gagal memuat kelas'], 500);
+        }
+    }
+
+    public function detail(Request $request)
+    {
+        try {
+            if ($resp = $this->guardApi()) {
+                return $resp;
+            }
+
+            $transno = trim((string) $request->query('transno', ''));
+            $custid = (int) $request->query('custid', 0);
+            if ($transno === '') {
+                return response()->json(['success' => false, 'message' => 'transno wajib diisi'], 422);
+            }
+
+            $result = $this->callWs('getCashlessDetail', [
+                'transno' => $transno,
+                'custid' => $custid,
+            ], 30);
+
+            if (($result['status'] ?? 0) !== 200) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $result['message'] ?? 'Gagal mengambil detail transaksi',
+                ], 422);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $result['data'] ?? [],
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Laporan Cashless detail error', ['message' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Gagal memuat detail'], 500);
         }
     }
 
@@ -295,11 +360,10 @@ class LaporanCashlessController extends Controller
         }
 
         $kelas = $this->normalizeMultiValue($request->query('kelas', []));
-        if (!empty($kelas)) {
+        // kelas hanya dikirim jika sekolah sudah dipilih
+        if (!empty($sekolah) && !empty($kelas)) {
             $params['kelas'] = $kelas;
         }
-
-        // Teller dikunci di WS dari JWT username — jangan terima override dari client
 
         $keterangan = trim((string) $request->query('keterangan', ''));
         if ($keterangan !== '') {

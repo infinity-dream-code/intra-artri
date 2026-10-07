@@ -2619,90 +2619,124 @@ function verifyCashlessPassword(string $plain, string $passwordHash): bool
     return $plain === $passwordHash;
 }
 
+function cashlessLoginFail(): void
+{
+    http_response_code(401);
+    echo json_encode(["status" => 401, "message" => "u/p salah"], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 function loginCashless(array $req): void
 {
     $username = trim((string) ($req["username"] ?? ""));
     $password = trim((string) ($req["password"] ?? ""));
 
     if ($username === "" || $password === "") {
-        http_response_code(422);
-        echo json_encode(["status" => 422, "message" => "Username dan password wajib diisi"], JSON_UNESCAPED_UNICODE);
-        exit;
+        cashlessLoginFail();
     }
 
-    $pdo = dbConnectPdo();
+    try {
+        $pdo = dbConnectPdo();
 
-    $stmt = $pdo->prepare("
-        SELECT *
-        FROM cyber_key
-        WHERE users = :username
-        LIMIT 1
-    ");
-    $stmt->bindValue(":username", $username, PDO::PARAM_STR);
-    $stmt->execute();
-    $user = $stmt->fetch();
+        $uname = "";
+        $nama = "";
+        $kel = "";
+        $userId = $username;
+        $source = "";
+        $valid = false;
 
-    if (!$user || !is_array($user)) {
-        http_response_code(401);
-        echo json_encode(["status" => 401, "message" => "Username atau password salah"], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
+        // 1) Cek cyber_key dulu
+        try {
+            $stmt = $pdo->prepare("SELECT * FROM cyber_key WHERE users = :username LIMIT 1");
+            $stmt->bindValue(":username", $username, PDO::PARAM_STR);
+            $stmt->execute();
+            $user = $stmt->fetch();
+            if ($user && is_array($user)) {
+                $passwordHash = (string) cashlessRowValue($user, ["password", "PASSWORD"], "");
+                $kunci = (string) cashlessRowValue($user, ["kunci", "KUNCI"], "");
+                if ($passwordHash !== "" && verifyCashlessPassword($password, $passwordHash)) {
+                    $valid = true;
+                } elseif ($kunci !== "" && verifyCashlessPassword($password, $kunci)) {
+                    $valid = true;
+                }
+                if ($valid) {
+                    $source = "cyber_key";
+                    $uname = (string) cashlessRowValue($user, ["users", "USERS", "username"], $username);
+                    $nama = (string) cashlessRowValue($user, ["ket", "KET", "nama", "NAMA"], $uname);
+                    $kel = strtolower(trim((string) cashlessRowValue($user, ["kel", "KEL"], "")));
+                    $userId = cashlessRowValue($user, ["urut", "URUT", "id", "ID"], $uname);
+                }
+            }
+        } catch (Throwable $e) {
+            // sengaja tidak expose detail
+        }
 
-    $passwordHash = (string) cashlessRowValue($user, ["password", "PASSWORD"], "");
-    $kunci = (string) cashlessRowValue($user, ["kunci", "KUNCI"], "");
-    $valid = false;
+        // 2) Jika tidak ada / tidak match di cyber_key, cek sm_kantin
+        if (!$valid) {
+            try {
+                $stmt2 = $pdo->prepare("SELECT * FROM sm_kantin WHERE username = :username LIMIT 1");
+                $stmt2->bindValue(":username", $username, PDO::PARAM_STR);
+                $stmt2->execute();
+                $user2 = $stmt2->fetch();
+                if ($user2 && is_array($user2)) {
+                    $passwordHash2 = (string) cashlessRowValue($user2, ["password", "PASSWORD"], "");
+                    if ($passwordHash2 !== "" && verifyCashlessPassword($password, $passwordHash2)) {
+                        $valid = true;
+                        $source = "sm_kantin";
+                        $uname = (string) cashlessRowValue($user2, ["username", "USERNAME"], $username);
+                        $nama = (string) cashlessRowValue($user2, ["NamaKantin", "namakantin", "nama", "NAMA"], $uname);
+                        $kel = "kantin";
+                        $userId = cashlessRowValue($user2, ["urut", "URUT", "id", "ID"], $uname);
+                    }
+                }
+            } catch (Throwable $e) {
+                // sengaja tidak expose detail
+            }
+        }
 
-    if ($passwordHash !== "") {
-        $valid = verifyCashlessPassword($password, $passwordHash);
-    }
-    if (!$valid && $kunci !== "") {
-        $valid = verifyCashlessPassword($password, $kunci);
-    }
+        if (!$valid || $uname === "") {
+            cashlessLoginFail();
+        }
 
-    if (!$valid) {
-        http_response_code(401);
-        echo json_encode(["status" => 401, "message" => "Username atau password salah"], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
+        $key = (string) ($_ENV["JWT_KEY"] ?? "");
+        if ($key === "") {
+            cashlessLoginFail();
+        }
 
-    $kel = strtolower(trim((string) cashlessRowValue($user, ["kel", "KEL"], "")));
-
-    $key = (string) ($_ENV["JWT_KEY"] ?? "");
-    if ($key === "") {
-        http_response_code(500);
-        echo json_encode(["status" => 500, "message" => "JWT_KEY belum di set"], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-
-    $uname = (string) cashlessRowValue($user, ["users", "USERS", "username"], $username);
-    $nama = (string) cashlessRowValue($user, ["ket", "KET", "nama", "NAMA"], $uname);
-    $userId = cashlessRowValue($user, ["urut", "URUT", "id", "ID"], $uname);
-
-    $payload = [
-        "user_id"  => $userId,
-        "username" => $uname,
-        "nama"     => $nama,
-        "kel"      => $kel,
-        "app"      => "laporan-cashless",
-        "iat"      => time(),
-        "exp"      => time() + 86400,
-    ];
-
-    $jwt = new JWT();
-    $token = $jwt->encode($payload, $key, "HS256");
-
-    http_response_code(200);
-    echo json_encode([
-        "status"  => 200,
-        "message" => "Login berhasil",
-        "data"    => [
-            "token"    => $token,
-            "nama"     => $nama,
+        $payload = [
+            "user_id"  => $userId,
             "username" => $uname,
+            "nama"     => $nama,
             "kel"      => $kel,
-        ]
-    ], JSON_UNESCAPED_UNICODE);
-    exit;
+            "source"   => $source,
+            "app"      => "laporan-cashless",
+            "iat"      => time(),
+            "exp"      => time() + 86400,
+        ];
+
+        $jwt = new JWT();
+        $token = $jwt->encode($payload, $key, "HS256");
+
+        http_response_code(200);
+        echo json_encode([
+            "status"  => 200,
+            "message" => "Login berhasil",
+            "data"    => [
+                "token"    => $token,
+                "nama"     => $nama,
+                "username" => $uname,
+                "kel"      => $kel,
+            ]
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    } catch (Throwable $e) {
+        writeLog([
+            "level" => "ERROR",
+            "event" => "LOGIN_CASHLESS",
+            "message" => $e->getMessage(),
+        ]);
+        cashlessLoginFail();
+    }
 }
 
 function resolveCashlessTellerUsername(array $req): string
@@ -2720,8 +2754,7 @@ function buildCashlessFilterSql(array $req, array &$params): string
 {
     $sql = "";
 
-    // Kunci data per user login (cyber_key.users = scctcashout.Teller)
-    // Client tidak bisa override untuk melihat teller lain.
+    // Kunci data per user login (username = scctcashout.Teller)
     $lockedTeller = resolveCashlessTellerUsername($req);
     $sql .= " AND o.Teller = :locked_teller ";
     $params[":locked_teller"] = $lockedTeller;
@@ -2739,7 +2772,7 @@ function buildCashlessFilterSql(array $req, array &$params): string
     }
 
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tglDari) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tglSampai)) {
-        throw new InvalidArgumentException("Format tanggal tidak valid. Gunakan YYYY-MM-DD");
+        throw new InvalidArgumentException("Format tanggal tidak valid");
     }
 
     if ($tglDari > $tglSampai) {
@@ -2752,7 +2785,8 @@ function buildCashlessFilterSql(array $req, array &$params): string
     $params[":tgl_sampai"] = $tglSampai . " 23:59:59";
     $sql .= " AND o.TanggalKeluar >= :tgl_dari AND o.TanggalKeluar <= :tgl_sampai ";
 
-    $sekolahList = normalizeMultiValue($req["sekolah"] ?? $req["unit"] ?? []);
+    // sekolah = mst_sekolah.CODE01 (multi)
+    $sekolahList = normalizeMultiValue($req["sekolah"] ?? []);
     if (!empty($sekolahList)) {
         $ph = [];
         foreach ($sekolahList as $i => $val) {
@@ -2760,12 +2794,12 @@ function buildCashlessFilterSql(array $req, array &$params): string
             $ph[] = $key;
             $params[$key] = $val;
         }
-        $in = implode(",", $ph);
-        $sql .= " AND (c.CODE01 IN ($in) OR c.CODE02 IN ($in)) ";
+        $sql .= " AND c.CODE01 IN (" . implode(",", $ph) . ") ";
     }
 
+    // kelas hanya relevan jika sekolah dipilih
     $kelasList = normalizeMultiValue($req["kelas"] ?? []);
-    if (!empty($kelasList)) {
+    if (!empty($sekolahList) && !empty($kelasList)) {
         $ph = [];
         foreach ($kelasList as $i => $val) {
             $key = ":kel_$i";
@@ -2801,7 +2835,22 @@ function getCashlessFilterOptions(array $req): void
     $sekolah = [];
     try {
         $stmtSekolah = $pdo->query("
-            SELECT DISTINCT unit AS value
+            SELECT CODE01 AS value, DESC01 AS label
+            FROM mst_sekolah
+            WHERE CODE01 IS NOT NULL AND CODE01 != ''
+            ORDER BY CODE01 ASC
+        ");
+        foreach ($stmtSekolah->fetchAll() as $row) {
+            $val = trim((string) ($row["value"] ?? ""));
+            $label = trim((string) ($row["label"] ?? $val));
+            if ($val === "") {
+                continue;
+            }
+            $sekolah[] = ["value" => $val, "label" => ($label !== "" ? $label : $val)];
+        }
+    } catch (Throwable $e) {
+        $stmtSekolah = $pdo->query("
+            SELECT DISTINCT unit AS value, unit AS label
             FROM mst_kelas
             WHERE unit IS NOT NULL AND unit != ''
             ORDER BY unit ASC
@@ -2813,40 +2862,8 @@ function getCashlessFilterOptions(array $req): void
             }
             $sekolah[] = ["value" => $val, "label" => $val];
         }
-    } catch (Throwable $e) {
-        $stmtSekolah = $pdo->query("
-            SELECT DISTINCT COALESCE(NULLIF(c.CODE02, ''), c.CODE01) AS value
-            FROM scctcust c
-            WHERE COALESCE(NULLIF(c.CODE02, ''), c.CODE01) IS NOT NULL
-              AND COALESCE(NULLIF(c.CODE02, ''), c.CODE01) != ''
-            ORDER BY value ASC
-            LIMIT 200
-        ");
-        foreach ($stmtSekolah->fetchAll() as $row) {
-            $val = trim((string) ($row["value"] ?? ""));
-            if ($val === "") {
-                continue;
-            }
-            $sekolah[] = ["value" => $val, "label" => $val];
-        }
     }
 
-    $kelas = [];
-    $stmtKelas = $pdo->query("
-        SELECT DISTINCT c.DESC02 AS value
-        FROM scctcust c
-        WHERE c.DESC02 IS NOT NULL AND c.DESC02 != ''
-        ORDER BY c.DESC02 ASC
-        LIMIT 300
-    ");
-    foreach ($stmtKelas->fetchAll() as $row) {
-        $val = trim((string) ($row["value"] ?? ""));
-        if ($val !== "") {
-            $kelas[] = $val;
-        }
-    }
-
-    // Hanya keterangan dari transaksi teller yang sedang login
     $keterangan = [];
     $stmtKet = $pdo->prepare("
         SELECT DISTINCT KETERANGAN AS value
@@ -2870,12 +2887,144 @@ function getCashlessFilterOptions(array $req): void
         "status" => 200,
         "data" => [
             "sekolah" => $sekolah,
-            "kelas" => $kelas,
-            "teller" => [$lockedTeller],
+            "kelas" => [],
             "keterangan" => $keterangan,
             "locked_teller" => $lockedTeller,
         ],
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+function getCashlessKelasBySekolah(array $req): void
+{
+    resolveCashlessTellerUsername($req);
+    $selected = normalizeMultiValue($req["sekolah"] ?? []);
+
+    if (empty($selected)) {
+        http_response_code(200);
+        echo json_encode(["status" => 200, "data" => []], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    $pdo = dbConnectPdo();
+    $params = [];
+    $ph = [];
+    foreach ($selected as $i => $val) {
+        $key = ":sekolah_$i";
+        $ph[] = $key;
+        $params[$key] = $val;
+    }
+
+    // Kelas mengikuti sekolah terpilih (mst_sekolah.CODE01 -> scctcust.CODE01 -> DESC02 / mst_kelas.kelas)
+    $sql = "
+        SELECT DISTINCT COALESCE(NULLIF(c.DESC02, ''), mk.kelas) AS value
+        FROM scctcust c
+        LEFT JOIN mst_kelas mk ON mk.id = c.CODE03
+        WHERE c.CODE01 IN (" . implode(",", $ph) . ")
+          AND COALESCE(NULLIF(c.DESC02, ''), mk.kelas) IS NOT NULL
+          AND COALESCE(NULLIF(c.DESC02, ''), mk.kelas) != ''
+        ORDER BY value ASC
+        LIMIT 500
+    ";
+
+    $stmt = $pdo->prepare($sql);
+    bindParams($stmt, $params);
+    $stmt->execute();
+    $kelas = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $val = trim((string) ($row["value"] ?? ""));
+        if ($val !== "") {
+            $kelas[] = $val;
+        }
+    }
+
+    http_response_code(200);
+    echo json_encode(["status" => 200, "data" => $kelas], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+function getCashlessDetail(array $req): void
+{
+    $lockedTeller = resolveCashlessTellerUsername($req);
+    $transno = trim((string) ($req["transno"] ?? ""));
+    $custid = (int) ($req["custid"] ?? 0);
+
+    if ($transno === "") {
+        http_response_code(422);
+        echo json_encode(["status" => 422, "message" => "transno wajib diisi"], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $pdo = dbConnectPdo();
+
+    // Pastikan transaksi cashout milik teller yang login
+    $chk = $pdo->prepare("
+        SELECT o.TRANSNO, o.CUSTID
+        FROM scctcashout o
+        WHERE o.TRANSNO = :transno
+          AND o.Teller = :teller
+        LIMIT 1
+    ");
+    $chk->bindValue(":transno", $transno, PDO::PARAM_STR);
+    $chk->bindValue(":teller", $lockedTeller, PDO::PARAM_STR);
+    $chk->execute();
+    $owned = $chk->fetch();
+    if (!$owned) {
+        http_response_code(403);
+        echo json_encode(["status" => 403, "message" => "Akses ditolak"], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $sql = "
+        SELECT
+            t.urut,
+            t.CUSTID AS custid,
+            t.METODE AS metode,
+            t.TRXDATE AS tanggal,
+            t.NOREFF AS noreff,
+            t.FIDBANK AS fidbank,
+            t.KDCHANNEL AS kdchannel,
+            t.DEBET AS debet,
+            t.KREDIT AS kredit,
+            t.REFFBANK AS reffbank,
+            t.TRANSNO AS transno,
+            t.KETERANGAN AS keterangan
+        FROM sccttran t
+        WHERE t.TRANSNO = :transno
+    ";
+    if ($custid > 0) {
+        $sql .= " AND t.CUSTID = :custid ";
+    }
+    $sql .= " ORDER BY t.TRXDATE ASC, t.urut ASC LIMIT 200 ";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->bindValue(":transno", $transno, PDO::PARAM_STR);
+    if ($custid > 0) {
+        $stmt->bindValue(":custid", $custid, PDO::PARAM_INT);
+    }
+    $stmt->execute();
+    $rows = $stmt->fetchAll();
+
+    $out = [];
+    foreach ($rows as $row) {
+        $out[] = [
+            "urut" => (int) ($row["urut"] ?? 0),
+            "custid" => (int) ($row["custid"] ?? 0),
+            "metode" => trim((string) ($row["metode"] ?? "")),
+            "tanggal" => (string) ($row["tanggal"] ?? ""),
+            "noreff" => trim((string) ($row["noreff"] ?? "")),
+            "fidbank" => trim((string) ($row["fidbank"] ?? "")),
+            "kdchannel" => trim((string) ($row["kdchannel"] ?? "")),
+            "debet" => (float) ($row["debet"] ?? 0),
+            "kredit" => (float) ($row["kredit"] ?? 0),
+            "reffbank" => trim((string) ($row["reffbank"] ?? "")),
+            "transno" => trim((string) ($row["transno"] ?? "")),
+            "keterangan" => trim((string) ($row["keterangan"] ?? "")),
+        ];
+    }
+
+    http_response_code(200);
+    echo json_encode(["status" => 200, "data" => $out], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
@@ -2912,9 +3061,11 @@ function getCashlessData(array $req): void
             c.NMCUST AS nama,
             c.CODE01 AS code01,
             c.CODE02 AS unit,
-            c.DESC02 AS kelas
+            c.DESC02 AS kelas,
+            ms.DESC01 AS sekolah_nama
         FROM scctcashout o
         LEFT JOIN scctcust c ON c.CUSTID = o.CUSTID
+        LEFT JOIN mst_sekolah ms ON ms.CODE01 = c.CODE01
         WHERE 1=1
         $filterSql
         ORDER BY o.TanggalKeluar DESC, o.urut DESC
@@ -2928,6 +3079,9 @@ function getCashlessData(array $req): void
 
     $out = [];
     foreach ($rows as $row) {
+        $sekolahNama = trim((string) ($row["sekolah_nama"] ?? ""));
+        $unit = trim((string) ($row["unit"] ?? ""));
+        $code01 = trim((string) ($row["code01"] ?? ""));
         $out[] = [
             "urut" => (int) ($row["urut"] ?? 0),
             "custid" => (int) ($row["custid"] ?? 0),
@@ -2940,10 +3094,10 @@ function getCashlessData(array $req): void
             "keterangan" => trim((string) ($row["keterangan"] ?? "")),
             "nis" => trim((string) ($row["nis"] ?? "")),
             "nama" => trim((string) ($row["nama"] ?? "")),
-            "code01" => trim((string) ($row["code01"] ?? "")),
-            "unit" => trim((string) ($row["unit"] ?? "")),
+            "code01" => $code01,
+            "unit" => $unit,
             "kelas" => trim((string) ($row["kelas"] ?? "")),
-            "sekolah" => trim((string) (($row["unit"] ?? "") !== "" ? $row["unit"] : ($row["code01"] ?? ""))),
+            "sekolah" => $sekolahNama !== "" ? $sekolahNama : ($unit !== "" ? $unit : $code01),
         ];
     }
 
@@ -3163,6 +3317,16 @@ try {
 
     if ($method === "getCashlessFilterOptions") {
         getCashlessFilterOptions($req);
+        exit;
+    }
+
+    if ($method === "getCashlessKelasBySekolah") {
+        getCashlessKelasBySekolah($req);
+        exit;
+    }
+
+    if ($method === "getCashlessDetail") {
+        getCashlessDetail($req);
         exit;
     }
 

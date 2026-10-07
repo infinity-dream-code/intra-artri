@@ -9,15 +9,9 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         :root {
-            --bg: #f4f6f8;
-            --card: #ffffff;
-            --shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
-            --accent: #2563eb;
-            --text: #0f172a;
-            --muted: #64748b;
-            --border: #e5e9ef;
-            --head-bg: #fef9c3;
-            --head-text: #854d0e;
+            --bg: #f4f6f8; --card: #ffffff; --shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+            --accent: #2563eb; --text: #0f172a; --muted: #64748b; --border: #e5e9ef;
+            --head-bg: #fef9c3; --head-text: #854d0e;
         }
         * { box-sizing: border-box; }
         body { margin: 0; min-height: 100vh; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; background: var(--bg); }
@@ -53,8 +47,21 @@
         .filter-top p { margin: 3px 0 0; font-size: .8rem; color: var(--muted); }
         .filter-toggle { border: none; background: none; color: var(--muted); font-size: .82rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; font-family: inherit; }
         .filter-body { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 16px; }
+        .field { position: relative; }
         .field label { display: block; font-size: .72rem; font-weight: 700; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
         .field select, .field input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: .88rem; font-family: inherit; background: #fff; color: var(--text); }
+        .multi-btn { width: 100%; border: 1px solid var(--border); background: #fff; color: var(--text); border-radius: 10px; padding: 10px 12px; font-size: .88rem; font-family: inherit; display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; text-align: left; }
+        .multi-btn:disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+        .multi-dropdown { display: none; position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; right: 0; background: #fff; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 12px 28px rgba(15,23,42,.12); }
+        .multi-dropdown.open { display: block; }
+        .multi-dropdown-inner { max-height: 220px; overflow: auto; padding: 8px; }
+        .multi-option { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: .86rem; }
+        .multi-option:hover { background: #f1f5f9; }
+        .multi-dropdown-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--border); }
+        .multi-clear-btn, .multi-apply-btn { border: none; border-radius: 8px; padding: 7px 12px; font-size: .78rem; font-weight: 700; cursor: pointer; font-family: inherit; }
+        .multi-clear-btn { background: #fff; color: var(--muted); border: 1px solid var(--border); }
+        .multi-apply-btn { background: var(--accent); color: #fff; }
+        .multi-empty { color: var(--muted); font-size: .82rem; padding: 12px; }
         .search-group { display: flex; gap: 8px; }
         .search-group input { flex: 1; }
         .search-group button { padding: 10px 16px; border: none; border-radius: 10px; background: var(--accent); color: #fff; font-size: .86rem; font-weight: 600; cursor: pointer; font-family: inherit; }
@@ -82,11 +89,19 @@
         .pagination-size select { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; }
         .btn-row { display: flex; flex-wrap: wrap; gap: 10px; }
         .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        #cashlessTable { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1100px; }
+        #cashlessTable { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1200px; }
         thead.main-thead { background: var(--head-bg); }
         #cashlessTable th { padding: 10px 8px; text-align: center; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; border-bottom: 1px solid var(--border); white-space: nowrap; color: var(--head-text); }
-        #cashlessTable td { padding: 10px 8px; font-size: .84rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
-        #cashlessTable tbody tr:hover { background: #f8fafc; }
+        #cashlessTable td { padding: 10px 8px; font-size: .84rem; border-bottom: 1px solid var(--border); vertical-align: middle; background: #fff; }
+        #cashlessTable tbody tr.data-row:hover td { background: #f8fafc; }
+        #cashlessTable tbody tr.data-row.expanded td { background: #eff6ff; }
+        .btn-expand { width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--accent); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+        .btn-expand.open { background: var(--accent); color: #fff; border-color: var(--accent); }
+        tr.detail-row > td { padding: 14px 16px; background: #f8fafc; border-bottom: 2px solid var(--border); }
+        .detail-box { background: #fff; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .detail-box table { width: 100%; border-collapse: collapse; min-width: 700px; }
+        .detail-box th, .detail-box td { padding: 8px 10px; border-bottom: 1px solid #eef2f7; font-size: .78rem; text-align: left; }
+        .detail-box th { background: #f1f5f9; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: .68rem; }
         .text-right { text-align: right; }
         .text-center { text-align: center; }
         .money { font-weight: 700; white-space: nowrap; }
@@ -96,14 +111,8 @@
         .page-btns { display: flex; gap: 8px; }
         .page-btns button { border: 1px solid var(--border); background: #fff; border-radius: 8px; padding: 8px 12px; font-size: .82rem; font-weight: 600; cursor: pointer; font-family: inherit; }
         .page-btns button:disabled { opacity: .45; cursor: not-allowed; }
-        @media (max-width: 900px) {
-            .filter-body { grid-template-columns: 1fr 1fr; }
-            .summary-grid { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 640px) {
-            .filter-body { grid-template-columns: 1fr; }
-            .main { padding: 14px; }
-        }
+        @media (max-width: 900px) { .filter-body { grid-template-columns: 1fr 1fr; } .summary-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 640px) { .filter-body { grid-template-columns: 1fr; } .main { padding: 14px; } }
         @media (min-width: 1024px) {
             .app { margin-left: 280px; }
             .drawer { transform: translateX(0); }
@@ -124,7 +133,7 @@
             <div class="filter-top">
                 <div>
                     <h2>Filter</h2>
-                    <p>Sesuaikan periode, unit, kelas, dan keterangan. Data dikunci ke akun login Anda.</p>
+                    <p>Pilih sekolah dulu untuk memuat kelas. Data dikunci ke akun login Anda.</p>
                 </div>
                 <button type="button" class="filter-toggle" id="filterToggle">
                     <span id="filterToggleText">Sembunyikan</span>
@@ -147,12 +156,32 @@
                         <input type="text" id="lockedTeller" value="{{ session('user.username', '') }}" readonly style="background:#f1f5f9;color:#64748b;">
                     </div>
                     <div class="field">
-                        <label for="filterSekolah">Sekolah / Unit</label>
-                        <select id="filterSekolah"><option value="">Semua sekolah/unit</option></select>
+                        <label>Sekolah</label>
+                        <button type="button" id="filterSekolahBtn" class="multi-btn">
+                            <span id="filterSekolahLabel">Semua sekolah</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="multi-dropdown" id="filterSekolahDropdown">
+                            <div class="multi-dropdown-inner" id="filterSekolahList"><div class="multi-empty">Memuat...</div></div>
+                            <div class="multi-dropdown-actions">
+                                <button type="button" class="multi-clear-btn" id="btnSekolahClear">Bersihkan</button>
+                                <button type="button" class="multi-apply-btn" id="btnSekolahApply">Terapkan</button>
+                            </div>
+                        </div>
                     </div>
                     <div class="field">
-                        <label for="filterKelas">Kelas / Program</label>
-                        <select id="filterKelas"><option value="">Semua kelas</option></select>
+                        <label>Kelas</label>
+                        <button type="button" id="filterKelasBtn" class="multi-btn" disabled>
+                            <span id="filterKelasLabel">Pilih sekolah dulu</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="multi-dropdown" id="filterKelasDropdown">
+                            <div class="multi-dropdown-inner" id="filterKelasList"><div class="multi-empty">Pilih sekolah dulu</div></div>
+                            <div class="multi-dropdown-actions">
+                                <button type="button" class="multi-clear-btn" id="btnKelasClear">Bersihkan</button>
+                                <button type="button" class="multi-apply-btn" id="btnKelasApply">Terapkan</button>
+                            </div>
+                        </div>
                     </div>
                     <div class="field">
                         <label for="filterKeterangan">Keterangan</label>
@@ -212,12 +241,13 @@
                 <table id="cashlessTable">
                     <thead class="main-thead">
                         <tr>
+                            <th style="width:44px;"></th>
                             <th>No</th>
                             <th>Tanggal</th>
                             <th>NIS</th>
                             <th>Nama</th>
                             <th>Kelas</th>
-                            <th>Unit</th>
+                            <th>Sekolah</th>
                             <th>Teller</th>
                             <th>Keterangan</th>
                             <th>Jumlah</th>
@@ -226,7 +256,7 @@
                         </tr>
                     </thead>
                     <tbody id="cashlessBody">
-                        <tr><td colspan="11" class="empty-state">Memuat data...</td></tr>
+                        <tr><td colspan="12" class="empty-state">Memuat data...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -273,6 +303,8 @@
 <script>
 const routes = {
     filters: @json(route('laporan-cashless.filters')),
+    kelas: @json(route('laporan-cashless.kelas')),
+    detail: @json(route('laporan-cashless.detail')),
     data: @json(route('laporan-cashless.data')),
     summary: @json(route('laporan-cashless.summary')),
     exportExcel: @json(route('laporan-cashless.export-excel')),
@@ -283,97 +315,124 @@ let currentPage = 1;
 let pageSize = 50;
 let hasMore = false;
 let loading = false;
+let selectedSekolah = [];
+let selectedKelas = [];
+let sekolahOptions = [];
+let kelasOptions = [];
 
 function todayStr() {
     const d = new Date();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${d.getFullYear()}-${m}-${day}`;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-
-function formatRupiah(n) {
-    const num = Number(n || 0);
-    return 'Rp ' + num.toLocaleString('id-ID');
-}
-
+function formatRupiah(n) { return 'Rp ' + Number(n || 0).toLocaleString('id-ID'); }
 function formatTanggal(v) {
     if (!v) return '-';
     const s = String(v).replace('T', ' ');
     return s.length > 19 ? s.slice(0, 19) : s;
 }
-
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
 async function parseJsonResponse(res) {
     const text = await res.text();
     let json = null;
-    try {
-        json = text ? JSON.parse(text) : {};
-    } catch (e) {
-        const head = String(text || '').slice(0, 300).toLowerCase();
-        if (res.status === 401 || res.status === 419 || head.includes('login') || head.includes('csrf')) {
-            throw new Error('Sesi berakhir atau tidak valid. Silakan login ulang.');
-        }
-        if (res.status === 404) {
-            throw new Error('Endpoint tidak ditemukan (404). Cek deploy route/controller.');
-        }
-        if (res.status >= 500) {
-            throw new Error('Server error (HTTP ' + res.status + '). Biasanya ws.php cashless belum di-deploy atau ada error PHP di server.');
-        }
-        throw new Error('Respons bukan JSON (HTTP ' + res.status + '). Session habis atau route belum ter-deploy.');
+    try { json = text ? JSON.parse(text) : {}; }
+    catch (e) {
+        if (res.status === 401 || res.status === 419) throw new Error('Sesi berakhir. Silakan login ulang.');
+        if (res.status >= 500) throw new Error('Server error. Coba refresh atau login ulang.');
+        throw new Error('Respons bukan JSON (HTTP ' + res.status + ').');
     }
-    if (!res.ok && json && json.success === false) {
-        throw new Error(json.message || ('Gagal memuat data (HTTP ' + res.status + ')'));
-    }
+    if (!res.ok && json && json.success === false) throw new Error(json.message || ('Gagal (HTTP ' + res.status + ')'));
     return json || {};
 }
-
 function apiHeaders(extra = {}) {
-    return {
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        ...extra,
-    };
+    return { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...extra };
 }
 
 function getFilters() {
     return {
         tgl_dari: document.getElementById('filterTglDari').value || todayStr(),
         tgl_sampai: document.getElementById('filterTglSampai').value || todayStr(),
-        sekolah: document.getElementById('filterSekolah').value || '',
-        kelas: document.getElementById('filterKelas').value || '',
+        sekolah: selectedSekolah.slice(),
+        kelas: selectedSekolah.length ? selectedKelas.slice() : [],
         keterangan: document.getElementById('filterKeterangan').value || '',
         search: document.getElementById('filterSearch').value.trim() || '',
     };
 }
-
 function buildQuery(extra = {}) {
-    const f = getFilters();
+    const f = { ...getFilters(), ...extra };
     const params = new URLSearchParams();
-    Object.entries({ ...f, ...extra }).forEach(([k, v]) => {
-        if (v !== '' && v !== null && v !== undefined) params.set(k, v);
+    Object.entries(f).forEach(([k, v]) => {
+        if (Array.isArray(v)) v.forEach(item => { if (item !== '' && item != null) params.append(k + '[]', item); });
+        else if (v !== '' && v != null && v !== undefined) params.set(k, v);
     });
     return params.toString();
 }
 
-function fillSelect(el, items, allLabel, valueKey = 'value', labelKey = 'label') {
-    const current = el.value;
-    el.innerHTML = `<option value="">${allLabel}</option>`;
-    (items || []).forEach((item) => {
-        let value, label;
-        if (typeof item === 'string' || typeof item === 'number') {
-            value = String(item);
-            label = String(item);
-        } else {
-            value = String(item[valueKey] ?? item.value ?? '');
-            label = String(item[labelKey] ?? item.label ?? value);
-        }
-        if (!value) return;
-        const opt = document.createElement('option');
-        opt.value = value;
-        opt.textContent = label;
-        el.appendChild(opt);
-    });
-    if ([...el.options].some(o => o.value === current)) {
-        el.value = current;
+function closeAllDropdowns() {
+    document.querySelectorAll('.multi-dropdown.open').forEach(el => el.classList.remove('open'));
+}
+function renderMultiOptions(listEl, options, selected, valueKey = 'value', labelKey = 'label') {
+    if (!options.length) {
+        listEl.innerHTML = '<div class="multi-empty">Tidak ada pilihan</div>';
+        return;
+    }
+    listEl.innerHTML = options.map(item => {
+        const value = typeof item === 'string' ? item : String(item[valueKey] ?? item.value ?? '');
+        const label = typeof item === 'string' ? item : String(item[labelKey] ?? item.label ?? value);
+        if (!value) return '';
+        const checked = selected.includes(value) ? 'checked' : '';
+        return `<label class="multi-option"><input type="checkbox" value="${escapeHtml(value)}" ${checked}><span>${escapeHtml(label)}</span></label>`;
+    }).join('');
+}
+function readChecked(listEl) {
+    return [...listEl.querySelectorAll('input[type="checkbox"]:checked')].map(el => el.value);
+}
+function updateSekolahLabel() {
+    const el = document.getElementById('filterSekolahLabel');
+    if (!selectedSekolah.length) el.textContent = 'Semua sekolah';
+    else if (selectedSekolah.length === 1) {
+        const opt = sekolahOptions.find(o => String(o.value) === selectedSekolah[0]);
+        el.textContent = opt ? (opt.label || opt.value) : selectedSekolah[0];
+    } else el.textContent = selectedSekolah.length + ' sekolah dipilih';
+}
+function updateKelasLabel() {
+    const btn = document.getElementById('filterKelasBtn');
+    const el = document.getElementById('filterKelasLabel');
+    if (!selectedSekolah.length) {
+        btn.disabled = true;
+        el.textContent = 'Pilih sekolah dulu';
+        return;
+    }
+    btn.disabled = false;
+    if (!selectedKelas.length) el.textContent = 'Semua kelas';
+    else if (selectedKelas.length === 1) el.textContent = selectedKelas[0];
+    else el.textContent = selectedKelas.length + ' kelas dipilih';
+}
+
+async function loadKelasOptions() {
+    const listEl = document.getElementById('filterKelasList');
+    if (!selectedSekolah.length) {
+        kelasOptions = [];
+        selectedKelas = [];
+        listEl.innerHTML = '<div class="multi-empty">Pilih sekolah dulu</div>';
+        updateKelasLabel();
+        return;
+    }
+    listEl.innerHTML = '<div class="multi-empty">Memuat kelas...</div>';
+    try {
+        const qs = new URLSearchParams();
+        selectedSekolah.forEach(v => qs.append('sekolah[]', v));
+        const res = await fetch(routes.kelas + '?' + qs.toString(), { headers: apiHeaders() });
+        const json = await parseJsonResponse(res);
+        kelasOptions = (json.data || []).map(v => typeof v === 'string' ? v : String(v.value ?? v));
+        selectedKelas = selectedKelas.filter(v => kelasOptions.includes(v));
+        renderMultiOptions(listEl, kelasOptions, selectedKelas);
+        updateKelasLabel();
+    } catch (e) {
+        listEl.innerHTML = `<div class="multi-empty">${escapeHtml(e.message || 'Gagal memuat kelas')}</div>`;
     }
 }
 
@@ -382,14 +441,20 @@ async function loadFilters() {
         const res = await fetch(routes.filters, { headers: apiHeaders(), cache: 'no-cache' });
         const json = await parseJsonResponse(res);
         if (!json.success) throw new Error(json.message || 'Gagal memuat filter');
-        fillSelect(document.getElementById('filterSekolah'), json.sekolah || [], 'Semua sekolah/unit');
-        fillSelect(document.getElementById('filterKelas'), json.kelas || [], 'Semua kelas');
-        fillSelect(document.getElementById('filterKeterangan'), json.keterangan || [], 'Semua keterangan');
-        if (json.locked_teller) {
-            document.getElementById('lockedTeller').value = json.locked_teller;
-        }
+        sekolahOptions = json.sekolah || [];
+        renderMultiOptions(document.getElementById('filterSekolahList'), sekolahOptions, selectedSekolah);
+        updateSekolahLabel();
+        updateKelasLabel();
+        const ket = document.getElementById('filterKeterangan');
+        const current = ket.value;
+        ket.innerHTML = '<option value="">Semua keterangan</option>';
+        (json.keterangan || []).forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v; opt.textContent = v; ket.appendChild(opt);
+        });
+        if ([...ket.options].some(o => o.value === current)) ket.value = current;
+        if (json.locked_teller) document.getElementById('lockedTeller').value = json.locked_teller;
     } catch (e) {
-        console.error(e);
         Swal.fire({ icon: 'error', title: 'Filter', text: e.message || 'Gagal memuat filter' });
     }
 }
@@ -400,10 +465,8 @@ async function loadSummary() {
     const summaryPeriod = document.getElementById('summaryPeriod');
     sumTransaksi.innerHTML = '<span class="spinner-sm"></span> Menghitung...';
     sumTotal.innerHTML = '<span class="spinner-sm"></span> Menghitung...';
-
     const f = getFilters();
     summaryPeriod.textContent = `${f.tgl_dari} s/d ${f.tgl_sampai}`;
-
     try {
         const res = await fetch(routes.summary + '?' + buildQuery(), { headers: apiHeaders() });
         const json = await parseJsonResponse(res);
@@ -411,13 +474,65 @@ async function loadSummary() {
         const d = json.data || {};
         sumTransaksi.textContent = Number(d.total_transaksi || 0).toLocaleString('id-ID');
         sumTotal.textContent = formatRupiah(d.total_jumlah || 0);
-        if (d.tgl_dari && d.tgl_sampai) {
-            summaryPeriod.textContent = `${d.tgl_dari} s/d ${d.tgl_sampai}`;
-        }
+        if (d.tgl_dari && d.tgl_sampai) summaryPeriod.textContent = `${d.tgl_dari} s/d ${d.tgl_sampai}`;
     } catch (e) {
         sumTransaksi.textContent = '-';
         sumTotal.textContent = '-';
-        console.error(e);
+    }
+}
+
+async function toggleDetail(btn, row, item) {
+    const next = row.nextElementSibling;
+    if (next && next.classList.contains('detail-row')) {
+        next.remove();
+        row.classList.remove('expanded');
+        btn.classList.remove('open');
+        btn.innerHTML = '<i class="fas fa-plus"></i>';
+        return;
+    }
+    document.querySelectorAll('tr.detail-row').forEach(r => r.remove());
+    document.querySelectorAll('tr.data-row.expanded').forEach(r => r.classList.remove('expanded'));
+    document.querySelectorAll('.btn-expand.open').forEach(b => {
+        b.classList.remove('open');
+        b.innerHTML = '<i class="fas fa-plus"></i>';
+    });
+
+    row.classList.add('expanded');
+    btn.classList.add('open');
+    btn.innerHTML = '<i class="fas fa-minus"></i>';
+
+    const detailTr = document.createElement('tr');
+    detailTr.className = 'detail-row';
+    detailTr.innerHTML = `<td colspan="12"><div class="detail-box"><div style="padding:14px;color:#64748b;"><span class="spinner-sm"></span> Memuat detail sccttran...</div></div></td>`;
+    row.after(detailTr);
+
+    try {
+        const qs = new URLSearchParams({ transno: item.transno || '', custid: item.custid || 0 });
+        const res = await fetch(routes.detail + '?' + qs.toString(), { headers: apiHeaders() });
+        const json = await parseJsonResponse(res);
+        if (!json.success) throw new Error(json.message || 'Gagal detail');
+        const rows = json.data || [];
+        if (!rows.length) {
+            detailTr.innerHTML = `<td colspan="12"><div class="detail-box"><div style="padding:14px;color:#64748b;">Tidak ada detail transaksi di sccttran untuk TRANSNO ini.</div></div></td>`;
+            return;
+        }
+        detailTr.innerHTML = `<td colspan="12"><div class="detail-box"><table>
+            <thead><tr>
+                <th>Tanggal</th><th>Metode</th><th>Noreff</th><th>Debet</th><th>Kredit</th><th>Channel</th><th>Reff Bank</th><th>Keterangan</th>
+            </tr></thead>
+            <tbody>${rows.map(r => `<tr>
+                <td>${escapeHtml(formatTanggal(r.tanggal))}</td>
+                <td>${escapeHtml(r.metode || '-')}</td>
+                <td>${escapeHtml(r.noreff || '-')}</td>
+                <td class="text-right">${formatRupiah(r.debet)}</td>
+                <td class="text-right">${formatRupiah(r.kredit)}</td>
+                <td>${escapeHtml(r.kdchannel || '-')}</td>
+                <td>${escapeHtml(r.reffbank || '-')}</td>
+                <td>${escapeHtml(r.keterangan || '-')}</td>
+            </tr>`).join('')}</tbody>
+        </table></div></td>`;
+    } catch (e) {
+        detailTr.innerHTML = `<td colspan="12"><div class="detail-box"><div style="padding:14px;color:#991b1b;">${escapeHtml(e.message || 'Gagal memuat detail')}</div></div></td>`;
     }
 }
 
@@ -425,29 +540,31 @@ async function loadData(resetPage = false) {
     if (loading) return;
     if (resetPage) currentPage = 1;
     loading = true;
-
     const body = document.getElementById('cashlessBody');
-    body.innerHTML = `<tr><td colspan="11" class="empty-state"><span class="spinner-sm"></span> Memuat data...</td></tr>`;
+    body.innerHTML = `<tr><td colspan="12" class="empty-state"><span class="spinner-sm"></span> Memuat data...</td></tr>`;
     document.getElementById('btnPrev').disabled = true;
     document.getElementById('btnNext').disabled = true;
 
     try {
-        const qs = buildQuery({ page: currentPage, limit: pageSize });
-        const res = await fetch(routes.data + '?' + qs, { headers: apiHeaders() });
+        const res = await fetch(routes.data + '?' + buildQuery({ page: currentPage, limit: pageSize }), { headers: apiHeaders() });
         const json = await parseJsonResponse(res);
         if (!json.success) throw new Error(json.message || 'Gagal memuat data');
-
         const rows = json.data || [];
         const pag = json.pagination || {};
         hasMore = !!pag.has_more;
 
         if (!rows.length) {
-            body.innerHTML = `<tr><td colspan="11" class="empty-state">Tidak ada transaksi untuk filter ini</td></tr>`;
+            body.innerHTML = `<tr><td colspan="12" class="empty-state">Tidak ada transaksi untuk filter ini</td></tr>`;
             document.getElementById('pageInfo').textContent = '0 data';
         } else {
             const startNo = pag.from || ((currentPage - 1) * pageSize + 1);
             body.innerHTML = rows.map((r, i) => `
-                <tr>
+                <tr class="data-row" data-idx="${i}">
+                    <td class="text-center">
+                        <button type="button" class="btn-expand" data-transno="${escapeHtml(r.transno || '')}" data-custid="${escapeHtml(r.custid || 0)}" title="Detail transaksi">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </td>
                     <td class="text-center">${startNo + i}</td>
                     <td class="text-center">${formatTanggal(r.tanggal)}</td>
                     <td class="text-center">${escapeHtml(r.nis || '-')}</td>
@@ -461,13 +578,16 @@ async function loadData(resetPage = false) {
                     <td class="text-center">${escapeHtml(r.fidbank || '-')}</td>
                 </tr>
             `).join('');
+
+            body.querySelectorAll('.btn-expand').forEach((btn, i) => {
+                btn.addEventListener('click', () => toggleDetail(btn, btn.closest('tr'), rows[i]));
+            });
             document.getElementById('pageInfo').textContent = `Menampilkan ${pag.from || 0}–${pag.to || 0}`;
         }
-
         document.getElementById('btnPrev').disabled = currentPage <= 1;
         document.getElementById('btnNext').disabled = !hasMore;
     } catch (e) {
-        body.innerHTML = `<tr><td colspan="11" class="empty-state">${escapeHtml(e.message || 'Gagal memuat data')}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="12" class="empty-state">${escapeHtml(e.message || 'Gagal memuat data')}</td></tr>`;
         document.getElementById('pageInfo').textContent = '-';
         Swal.fire({ icon: 'error', title: 'Data', text: e.message || 'Gagal memuat data' });
     } finally {
@@ -475,22 +595,9 @@ async function loadData(resetPage = false) {
     }
 }
 
-function escapeHtml(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
-
 function refreshAll(resetPage = true) {
     loadSummary();
     loadData(resetPage);
-}
-
-function exportUrl(base) {
-    return base + '?' + buildQuery();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -500,11 +607,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const drawer = document.getElementById('drawer');
     const backdrop = document.getElementById('drawerBackdrop');
-    const openDrawer = () => { drawer.classList.add('open'); backdrop.classList.add('open'); drawer.setAttribute('aria-hidden', 'false'); };
-    const closeDrawer = () => { drawer.classList.remove('open'); backdrop.classList.remove('open'); drawer.setAttribute('aria-hidden', 'true'); };
-    document.getElementById('drawerToggle').addEventListener('click', openDrawer);
-    document.getElementById('drawerClose').addEventListener('click', closeDrawer);
-    backdrop.addEventListener('click', closeDrawer);
+    document.getElementById('drawerToggle').addEventListener('click', () => { drawer.classList.add('open'); backdrop.classList.add('open'); });
+    document.getElementById('drawerClose').addEventListener('click', () => { drawer.classList.remove('open'); backdrop.classList.remove('open'); });
+    backdrop.addEventListener('click', () => { drawer.classList.remove('open'); backdrop.classList.remove('open'); });
 
     const filterBody = document.getElementById('filterBody');
     document.getElementById('filterToggle').addEventListener('click', () => {
@@ -514,44 +619,80 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('filterToggleIcon').className = hidden ? 'fas fa-chevron-up' : 'fas fa-chevron-down';
     });
 
-    document.getElementById('btnApply').addEventListener('click', () => refreshAll(true));
-    document.getElementById('btnSearch').addEventListener('click', () => refreshAll(true));
-    document.getElementById('btnReset').addEventListener('click', () => {
-        document.getElementById('filterTglDari').value = today;
-        document.getElementById('filterTglSampai').value = today;
-        document.getElementById('filterSekolah').value = '';
-        document.getElementById('filterKelas').value = '';
-        document.getElementById('filterKeterangan').value = '';
-        document.getElementById('filterSearch').value = '';
+    document.getElementById('filterSekolahBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const dd = document.getElementById('filterSekolahDropdown');
+        const open = dd.classList.contains('open');
+        closeAllDropdowns();
+        if (!open) {
+            renderMultiOptions(document.getElementById('filterSekolahList'), sekolahOptions, selectedSekolah);
+            dd.classList.add('open');
+        }
+    });
+    document.getElementById('btnSekolahClear').addEventListener('click', () => {
+        selectedSekolah = [];
+        selectedKelas = [];
+        renderMultiOptions(document.getElementById('filterSekolahList'), sekolahOptions, selectedSekolah);
+        updateSekolahLabel();
+        loadKelasOptions();
+    });
+    document.getElementById('btnSekolahApply').addEventListener('click', async () => {
+        selectedSekolah = readChecked(document.getElementById('filterSekolahList'));
+        selectedKelas = [];
+        updateSekolahLabel();
+        document.getElementById('filterSekolahDropdown').classList.remove('open');
+        await loadKelasOptions();
         refreshAll(true);
     });
 
+    document.getElementById('filterKelasBtn').addEventListener('click', (e) => {
+        if (!selectedSekolah.length) return;
+        e.stopPropagation();
+        const dd = document.getElementById('filterKelasDropdown');
+        const open = dd.classList.contains('open');
+        closeAllDropdowns();
+        if (!open) {
+            renderMultiOptions(document.getElementById('filterKelasList'), kelasOptions, selectedKelas);
+            dd.classList.add('open');
+        }
+    });
+    document.getElementById('btnKelasClear').addEventListener('click', () => {
+        selectedKelas = [];
+        renderMultiOptions(document.getElementById('filterKelasList'), kelasOptions, selectedKelas);
+        updateKelasLabel();
+    });
+    document.getElementById('btnKelasApply').addEventListener('click', () => {
+        selectedKelas = readChecked(document.getElementById('filterKelasList'));
+        updateKelasLabel();
+        document.getElementById('filterKelasDropdown').classList.remove('open');
+        refreshAll(true);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.field')) closeAllDropdowns();
+    });
+
+    document.getElementById('btnApply').addEventListener('click', () => refreshAll(true));
+    document.getElementById('btnSearch').addEventListener('click', () => refreshAll(true));
+    document.getElementById('btnReset').addEventListener('click', async () => {
+        document.getElementById('filterTglDari').value = today;
+        document.getElementById('filterTglSampai').value = today;
+        document.getElementById('filterKeterangan').value = '';
+        document.getElementById('filterSearch').value = '';
+        selectedSekolah = [];
+        selectedKelas = [];
+        updateSekolahLabel();
+        await loadKelasOptions();
+        refreshAll(true);
+    });
     document.getElementById('pageSizeSelect').addEventListener('change', (e) => {
         pageSize = parseInt(e.target.value, 10) || 50;
         refreshAll(true);
     });
-
-    document.getElementById('btnPrev').addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage -= 1;
-            loadData(false);
-        }
-    });
-    document.getElementById('btnNext').addEventListener('click', () => {
-        if (hasMore) {
-            currentPage += 1;
-            loadData(false);
-        }
-    });
-
-    document.getElementById('btnExportExcel').addEventListener('click', (e) => {
-        e.preventDefault();
-        window.location.href = exportUrl(routes.exportExcel);
-    });
-    document.getElementById('btnExportPdf').addEventListener('click', (e) => {
-        e.preventDefault();
-        window.location.href = exportUrl(routes.exportPdf);
-    });
+    document.getElementById('btnPrev').addEventListener('click', () => { if (currentPage > 1) { currentPage -= 1; loadData(false); } });
+    document.getElementById('btnNext').addEventListener('click', () => { if (hasMore) { currentPage += 1; loadData(false); } });
+    document.getElementById('btnExportExcel').addEventListener('click', (e) => { e.preventDefault(); window.location.href = routes.exportExcel + '?' + buildQuery(); });
+    document.getElementById('btnExportPdf').addEventListener('click', (e) => { e.preventDefault(); window.location.href = routes.exportPdf + '?' + buildQuery(); });
 
     @if(session('login_success'))
         Swal.fire({ icon: 'success', title: 'Berhasil', text: @json(session('login_success')), timer: 1800, showConfirmButton: false });

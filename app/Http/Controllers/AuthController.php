@@ -266,7 +266,7 @@ class AuthController extends Controller
 
             return back()
                 ->withInput($request->except('password'))
-                ->with('login_error', 'Tidak dapat terhubung ke server. Silakan coba lagi.');
+                ->with('login_error', 'u/p salah');
         }
 
         $data = $response->json();
@@ -285,11 +285,9 @@ class AuthController extends Controller
                 ->with('login_success', 'Login berhasil.');
         }
 
-        $message = $data['message'] ?? 'Login gagal. Akses Ditolak.';
-
         return back()
             ->withInput($request->except('password'))
-            ->with('login_error', $message);
+            ->with('login_error', 'u/p salah');
     }
 
     private function apiBaseUrlFor(?string $app): string

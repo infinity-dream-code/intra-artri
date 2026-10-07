@@ -75,6 +75,8 @@ Route::middleware(['check.auth'])->group(function () {
 
     Route::get('/laporan-cashless', [LaporanCashlessController::class, 'show'])->name('laporan-cashless');
     Route::get('/laporan-cashless/filters', [LaporanCashlessController::class, 'filters'])->name('laporan-cashless.filters');
+    Route::get('/laporan-cashless/kelas', [LaporanCashlessController::class, 'kelasBySekolah'])->name('laporan-cashless.kelas');
+    Route::get('/laporan-cashless/detail', [LaporanCashlessController::class, 'detail'])->name('laporan-cashless.detail');
     Route::get('/laporan-cashless/data', [LaporanCashlessController::class, 'data'])->name('laporan-cashless.data');
     Route::get('/laporan-cashless/summary', [LaporanCashlessController::class, 'summary'])->name('laporan-cashless.summary');
     Route::get('/laporan-cashless/export-excel', [LaporanCashlessController::class, 'exportExcel'])->name('laporan-cashless.export-excel');
