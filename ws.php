@@ -2750,6 +2750,21 @@ function resolveCashlessTellerUsername(array $req): string
     return $username;
 }
 
+/** Hanya Admin Uang Saku (cyber_key.kel = usaku) boleh filter multi sekolah/kelas. */
+function canCashlessMultiFilter(array $req): bool
+{
+    return strtolower(trim((string) ($req["kel"] ?? ""))) === "usaku";
+}
+
+function limitCashlessMultiIfNeeded(array $list, array $req): array
+{
+    $list = array_values($list);
+    if (canCashlessMultiFilter($req) || count($list) <= 1) {
+        return $list;
+    }
+    return array_slice($list, 0, 1);
+}
+
 function buildCashlessFilterSql(array $req, array &$params): string
 {
     $sql = "";
@@ -2785,8 +2800,8 @@ function buildCashlessFilterSql(array $req, array &$params): string
     $params[":tgl_sampai"] = $tglSampai . " 23:59:59";
     $sql .= " AND o.TanggalKeluar >= :tgl_dari AND o.TanggalKeluar <= :tgl_sampai ";
 
-    // sekolah = mst_sekolah.CODE01 (multi)
-    $sekolahList = normalizeMultiValue($req["sekolah"] ?? []);
+    // sekolah = mst_sekolah.CODE01 (multi hanya untuk kel=usaku)
+    $sekolahList = limitCashlessMultiIfNeeded(normalizeMultiValue($req["sekolah"] ?? []), $req);
     if (!empty($sekolahList)) {
         $ph = [];
         foreach ($sekolahList as $i => $val) {
@@ -2798,7 +2813,7 @@ function buildCashlessFilterSql(array $req, array &$params): string
     }
 
     // kelas hanya relevan jika sekolah dipilih
-    $kelasList = normalizeMultiValue($req["kelas"] ?? []);
+    $kelasList = limitCashlessMultiIfNeeded(normalizeMultiValue($req["kelas"] ?? []), $req);
     if (!empty($sekolahList) && !empty($kelasList)) {
         $ph = [];
         foreach ($kelasList as $i => $val) {
@@ -2898,7 +2913,7 @@ function getCashlessFilterOptions(array $req): void
 function getCashlessKelasBySekolah(array $req): void
 {
     resolveCashlessTellerUsername($req);
-    $selected = normalizeMultiValue($req["sekolah"] ?? []);
+    $selected = limitCashlessMultiIfNeeded(normalizeMultiValue($req["sekolah"] ?? []), $req);
 
     if (empty($selected)) {
         http_response_code(200);
@@ -2990,17 +3005,19 @@ function getCashlessDetail(array $req): void
             t.TRANSNO AS transno,
             t.KETERANGAN AS keterangan
         FROM sccttran t
-        WHERE t.TRANSNO = :transno
+        WHERE t.NOREFF = :transno
     ";
-    if ($custid > 0) {
+    // scctcashout.TRANSNO = sccttran.NOREFF (kolom TRANSNO di sccttran sering null)
+    $useCustid = $custid > 0 ? $custid : (int) ($owned["CUSTID"] ?? 0);
+    if ($useCustid > 0) {
         $sql .= " AND t.CUSTID = :custid ";
     }
     $sql .= " ORDER BY t.TRXDATE ASC, t.urut ASC LIMIT 200 ";
 
     $stmt = $pdo->prepare($sql);
     $stmt->bindValue(":transno", $transno, PDO::PARAM_STR);
-    if ($custid > 0) {
-        $stmt->bindValue(":custid", $custid, PDO::PARAM_INT);
+    if ($useCustid > 0) {
+        $stmt->bindValue(":custid", $useCustid, PDO::PARAM_INT);
     }
     $stmt->execute();
     $rows = $stmt->fetchAll();

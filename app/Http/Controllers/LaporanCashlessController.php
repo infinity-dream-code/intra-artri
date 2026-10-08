@@ -76,7 +76,7 @@ class LaporanCashlessController extends Controller
                 return $resp;
             }
 
-            $sekolah = $this->normalizeMultiValue($request->query('sekolah', []));
+            $sekolah = $this->limitMultiIfNeeded($this->normalizeMultiValue($request->query('sekolah', [])));
             if (empty($sekolah)) {
                 return response()->json(['success' => true, 'data' => []]);
             }
@@ -337,6 +337,21 @@ class LaporanCashlessController extends Controller
         ];
     }
 
+    private function canMultiFilter(): bool
+    {
+        return strtolower(trim((string) session('user.kel', ''))) === 'usaku';
+    }
+
+    private function limitMultiIfNeeded(array $list): array
+    {
+        $list = array_values($list);
+        if ($this->canMultiFilter() || count($list) <= 1) {
+            return $list;
+        }
+
+        return array_slice($list, 0, 1);
+    }
+
     private function buildFilterParams(Request $request): array
     {
         $params = [];
@@ -354,12 +369,12 @@ class LaporanCashlessController extends Controller
         $params['tgl_dari'] = $tglDari;
         $params['tgl_sampai'] = $tglSampai;
 
-        $sekolah = $this->normalizeMultiValue($request->query('sekolah', []));
+        $sekolah = $this->limitMultiIfNeeded($this->normalizeMultiValue($request->query('sekolah', [])));
         if (!empty($sekolah)) {
             $params['sekolah'] = $sekolah;
         }
 
-        $kelas = $this->normalizeMultiValue($request->query('kelas', []));
+        $kelas = $this->limitMultiIfNeeded($this->normalizeMultiValue($request->query('kelas', [])));
         // kelas hanya dikirim jika sekolah sudah dipilih
         if (!empty($sekolah) && !empty($kelas)) {
             $params['kelas'] = $kelas;

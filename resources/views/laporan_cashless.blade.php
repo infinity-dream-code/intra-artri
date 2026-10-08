@@ -273,7 +273,7 @@
             <div class="filter-top">
                 <div>
                     <h2><i class="fas fa-sliders"></i> Filter</h2>
-                    <p>Pilih sekolah dulu untuk memuat kelas. Data dikunci ke akun login Anda.</p>
+                    <p id="filterHint">Pilih sekolah dulu untuk memuat kelas. Data dikunci ke akun login Anda.</p>
                 </div>
                 <button type="button" class="filter-toggle" id="filterToggle">
                     <span id="filterToggleText">Sembunyikan</span>
@@ -425,7 +425,10 @@
             <div class="drawer-logo"><img src="{{ asset('logo.png') }}" alt="Logo"></div>
             <div>
                 <div class="drawer-user-name">{{ session('user.nama', session('user.username')) }}</div>
-                <div class="drawer-user-role">{{ session('user.kel') ? ucfirst(session('user.kel')) : 'Cashless' }}</div>
+                <div class="drawer-user-role">
+                    @php $kelRole = strtolower(trim((string) session('user.kel', ''))); @endphp
+                    {{ $kelRole === 'usaku' ? 'Admin Uang Saku' : ($kelRole !== '' ? ucfirst($kelRole) : 'Cashless') }}
+                </div>
             </div>
         </div>
         <button type="button" class="drawer-close" id="drawerClose" aria-label="Tutup menu" title="Tutup">
@@ -457,6 +460,8 @@ const routes = {
     exportPdf: @json(route('laporan-cashless.export-pdf')),
 };
 
+const canMultiFilter = @json(strtolower(trim((string) session('user.kel', ''))) === 'usaku');
+
 let currentPage = 1;
 let pageSize = 50;
 let hasMore = false;
@@ -465,6 +470,14 @@ let selectedSekolah = [];
 let selectedKelas = [];
 let sekolahOptions = [];
 let kelasOptions = [];
+
+(function initFilterHint() {
+    const hint = document.getElementById('filterHint');
+    if (!hint) return;
+    hint.textContent = canMultiFilter
+        ? 'Admin Uang Saku: boleh pilih lebih dari satu sekolah/kelas. Data dikunci ke akun login Anda.'
+        : 'Pilih satu sekolah dulu untuk memuat kelas. Multi sekolah/kelas hanya untuk Admin Uang Saku (usaku).';
+})();
 
 function todayStr() {
     const d = new Date();
@@ -502,11 +515,13 @@ function apiHeaders(extra = {}) {
 }
 
 function getFilters() {
+    const sekolah = enforceSingleSelection(selectedSekolah.slice());
+    const kelas = sekolah.length ? enforceSingleSelection(selectedKelas.slice()) : [];
     return {
         tgl_dari: document.getElementById('filterTglDari').value || todayStr(),
         tgl_sampai: document.getElementById('filterTglSampai').value || todayStr(),
-        sekolah: selectedSekolah.slice(),
-        kelas: selectedSekolah.length ? selectedKelas.slice() : [],
+        sekolah,
+        kelas,
         keterangan: document.getElementById('filterKeterangan').value || '',
         search: document.getElementById('filterSearch').value.trim() || '',
     };
@@ -529,13 +544,19 @@ function renderMultiOptions(listEl, options, selected, valueKey = 'value', label
         listEl.innerHTML = '<div class="multi-empty">Tidak ada pilihan</div>';
         return;
     }
+    const inputType = canMultiFilter ? 'checkbox' : 'radio';
+    const name = listEl.id === 'filterKelasList' ? 'filterKelasPick' : 'filterSekolahPick';
     listEl.innerHTML = options.map(item => {
         const value = typeof item === 'string' ? item : String(item[valueKey] ?? item.value ?? '');
         const label = typeof item === 'string' ? item : String(item[labelKey] ?? item.label ?? value);
         if (!value) return '';
         const checked = selected.includes(value) ? 'checked' : '';
-        return `<label class="multi-option"><input type="checkbox" value="${escapeHtml(value)}" ${checked}><span>${escapeHtml(label)}</span></label>`;
+        return `<label class="multi-option"><input type="${inputType}" name="${name}" value="${escapeHtml(value)}" ${checked}><span>${escapeHtml(label)}</span></label>`;
     }).join('');
+}
+function enforceSingleSelection(arr) {
+    if (canMultiFilter || arr.length <= 1) return arr;
+    return arr.slice(0, 1);
 }
 function readChecked(listEl) {
     return [...listEl.querySelectorAll('input[type="checkbox"]:checked')].map(el => el.value);
@@ -789,7 +810,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadKelasOptions();
     });
     document.getElementById('btnSekolahApply').addEventListener('click', async () => {
-        selectedSekolah = readChecked(document.getElementById('filterSekolahList'));
+        selectedSekolah = enforceSingleSelection(readChecked(document.getElementById('filterSekolahList')));
         selectedKelas = [];
         updateSekolahLabel();
         document.getElementById('filterSekolahDropdown').classList.remove('open');
@@ -814,7 +835,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateKelasLabel();
     });
     document.getElementById('btnKelasApply').addEventListener('click', () => {
-        selectedKelas = readChecked(document.getElementById('filterKelasList'));
+        selectedKelas = enforceSingleSelection(readChecked(document.getElementById('filterKelasList')));
         updateKelasLabel();
         document.getElementById('filterKelasDropdown').classList.remove('open');
         refreshAll(true);
