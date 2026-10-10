@@ -98,16 +98,6 @@
             /* Perbaiki kiri-kanan (mirror) agar tidak kebalik */
             transform: scaleX(-1);
         }
-        .cam-tools {
-            position: absolute; right: 12px; bottom: 12px; z-index: 5;
-            display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
-        }
-        .cam-tools button {
-            border: none; border-radius: 999px; padding: 8px 12px;
-            background: rgba(15,23,42,.72); color: #fff; font-size: .75rem;
-            font-weight: 700; cursor: pointer; font-family: inherit;
-            backdrop-filter: blur(6px);
-        }
         #canvas { display: none; }
         .scan-overlay {
             position: absolute;
@@ -189,10 +179,6 @@
                     <div class="c4"></div>
                     <div class="scan-line"></div>
                 </div>
-            </div>
-            <div class="cam-tools">
-                <button type="button" id="btnMirrorCam" title="Balik kiri-kanan">Kiri-Kanan ✓</button>
-                <button type="button" id="btnFlipCam" title="Jika atas-bawah terbalik">Putar 180°</button>
             </div>
         </div>
         <div class="hint" id="hint">Arahkan kamera ke QR Code</div>
@@ -426,17 +412,6 @@
             rafId = requestAnimationFrame(tick);
         }
     }
-
-    document.getElementById('btnMirrorCam').addEventListener('click', function() {
-        mirrorX = !mirrorX;
-        applyVideoOrientation();
-        this.textContent = mirrorX ? 'Kiri-Kanan ✓' : 'Kiri-Kanan';
-    });
-    document.getElementById('btnFlipCam').addEventListener('click', function() {
-        rotated180 = !rotated180;
-        applyVideoOrientation();
-        this.textContent = rotated180 ? 'Putar 180° ✓' : 'Putar 180°';
-    });
 
     document.addEventListener('DOMContentLoaded', function() {
         startScanner();
