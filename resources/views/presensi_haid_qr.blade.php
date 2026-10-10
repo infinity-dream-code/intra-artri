@@ -95,6 +95,18 @@
             top: 0; left: 0;
             width: 100%; height: 100%;
             object-fit: cover;
+            /* Orientasi alami (tidak mirror / tidak terbalik) — cocok untuk scan QR */
+            transform: none;
+        }
+        .cam-tools {
+            position: absolute; right: 12px; bottom: 12px; z-index: 5;
+            display: flex; gap: 8px;
+        }
+        .cam-tools button {
+            border: none; border-radius: 999px; padding: 8px 12px;
+            background: rgba(15,23,42,.72); color: #fff; font-size: .75rem;
+            font-weight: 700; cursor: pointer; font-family: inherit;
+            backdrop-filter: blur(6px);
         }
         #canvas { display: none; }
         .scan-overlay {
@@ -177,6 +189,9 @@
                     <div class="c4"></div>
                     <div class="scan-line"></div>
                 </div>
+            </div>
+            <div class="cam-tools">
+                <button type="button" id="btnFlipCam" title="Jika gambar terbalik, tekan ini">Putar 180°</button>
             </div>
         </div>
         <div class="hint" id="hint">Arahkan kamera ke QR Code</div>
@@ -271,11 +286,16 @@
     let rafId     = null;
     let isPosting = false;
     let isScanning = false;
+    let rotated180 = false;
 
     function setStatus(text, isReady) {
         var c = isReady ? '#22c55e' : '#f59e0b';
         var s = isReady ? '34,197,94' : '245,158,11';
         statusEl.innerHTML = '<span class="dot" style="background:' + c + ';box-shadow:0 0 0 4px rgba(' + s + ',0.12)"></span><span>' + text + '</span>';
+    }
+
+    function applyVideoOrientation() {
+        video.style.transform = rotated180 ? 'rotate(180deg)' : 'none';
     }
 
     function tick() {
@@ -284,9 +304,15 @@
             canvas.width  = video.videoWidth;
             canvas.height = video.videoHeight;
             var ctx = canvas.getContext('2d');
+            ctx.save();
+            if (rotated180) {
+                ctx.translate(canvas.width, canvas.height);
+                ctx.rotate(Math.PI);
+            }
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            ctx.restore();
             var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+            var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
             if (code && code.data) {
                 onScanSuccess(code.data);
                 return;
@@ -300,37 +326,38 @@
         setStatus('Starting...', false);
         hintEl.textContent = 'Meminta izin kamera...';
 
-        var constraints = {
-            video: {
-                facingMode: { ideal: 'environment' },
-                width:  { ideal: 1280 },
-                height: { ideal: 720 }
-            }
-        };
+        var attempts = [
+            { video: { facingMode: { exact: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+            { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+            { video: { facingMode: 'environment' } },
+            { video: true }
+        ];
 
-        try {
-            stream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch(err1) {
+        for (var i = 0; i < attempts.length; i++) {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            } catch(err2) {
-                setStatus('Camera blocked', false);
-                hintEl.textContent = 'Izin kamera ditolak.';
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Izin Kamera Ditolak',
-                    html: 'Klik ikon <b>kunci/kamera</b> di address bar, pilih <b>Izinkan</b>, lalu refresh.',
-                    confirmButtonColor: '#a855f7'
-                });
-                return;
-            }
+                stream = await navigator.mediaDevices.getUserMedia(attempts[i]);
+                break;
+            } catch (err) {}
+        }
+
+        if (!stream) {
+            setStatus('Camera blocked', false);
+            hintEl.textContent = 'Izin kamera ditolak.';
+            Swal.fire({
+                icon: 'error',
+                title: 'Izin Kamera Ditolak',
+                html: 'Klik ikon <b>kunci/kamera</b> di address bar, pilih <b>Izinkan</b>, lalu refresh.',
+                confirmButtonColor: '#a855f7'
+            });
+            return;
         }
 
         video.srcObject = stream;
+        applyVideoOrientation();
         video.play();
         isScanning = true;
         setStatus('Ready', true);
-        hintEl.textContent = 'Arahkan kamera ke QR Code';
+        hintEl.textContent = 'Arahkan kamera belakang ke QR Code';
         rafId = requestAnimationFrame(tick);
     }
 
@@ -381,11 +408,17 @@
         } finally {
             isPosting = false;
             setStatus('Ready', true);
-            hintEl.textContent = 'Arahkan kamera ke QR Code';
+            hintEl.textContent = 'Arahkan kamera belakang ke QR Code';
             isScanning = true;
             rafId = requestAnimationFrame(tick);
         }
     }
+
+    document.getElementById('btnFlipCam').addEventListener('click', function() {
+        rotated180 = !rotated180;
+        applyVideoOrientation();
+        this.textContent = rotated180 ? 'Normalkan' : 'Putar 180°';
+    });
 
     document.addEventListener('DOMContentLoaded', function() {
         startScanner();

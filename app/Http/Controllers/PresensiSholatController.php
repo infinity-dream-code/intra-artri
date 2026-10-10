@@ -79,7 +79,7 @@ class PresensiSholatController extends Controller
 
             return response()->json([
                 'ok' => false,
-                'message' => 'Tidak dapat terhubung ke server. Silakan coba lagi.',
+                'message' => 'Server Presensi (VPS) tidak merespons. Coba lagi nanti atau hubungi ICT.',
             ], 502);
         }
 
@@ -195,7 +195,7 @@ class PresensiSholatController extends Controller
 
             return response()->json([
                 'ok' => false,
-                'message' => 'Tidak dapat terhubung ke server. Silakan coba lagi.',
+                'message' => 'Server Presensi (VPS) tidak merespons. Coba lagi nanti atau hubungi ICT.',
             ], 502);
         }
 
@@ -330,7 +330,7 @@ class PresensiSholatController extends Controller
             Log::error('LogMarifah error', [
                 'message' => $e->getMessage(),
             ]);
-            $error = 'Tidak dapat terhubung ke server. Silakan coba lagi.';
+            $error = 'Server Presensi (VPS) tidak merespons. Coba lagi nanti atau hubungi ICT.';
         }
 
         return view('log_marifah', [
