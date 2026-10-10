@@ -92,12 +92,12 @@
             top: 0; left: 0;
             width: 100%; height: 100%;
             object-fit: cover;
-            /* Orientasi alami (tidak mirror / tidak terbalik) — cocok untuk scan QR */
-            transform: none;
+            /* Perbaiki kiri-kanan (mirror) agar tidak kebalik */
+            transform: scaleX(-1);
         }
         .cam-tools {
             position: absolute; right: 12px; bottom: 12px; z-index: 5;
-            display: flex; gap: 8px;
+            display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
         }
         .cam-tools button {
             border: none; border-radius: 999px; padding: 8px 12px;
@@ -188,7 +188,8 @@
                 </div>
             </div>
             <div class="cam-tools">
-                <button type="button" id="btnFlipCam" title="Jika gambar terbalik, tekan ini">Putar 180°</button>
+                <button type="button" id="btnMirrorCam" title="Balik kiri-kanan">Kiri-Kanan ✓</button>
+                <button type="button" id="btnFlipCam" title="Jika atas-bawah terbalik">Putar 180°</button>
             </div>
         </div>
         <div class="hint" id="hint">Arahkan kamera ke QR Code</div>
@@ -283,6 +284,8 @@
     let rafId     = null;
     let isPosting = false;
     let isScanning = false;
+    // Default mirror ON: webcam biasanya kebalik kiri-kanan
+    let mirrorX = true;
     let rotated180 = false;
 
     function setStatus(text, isReady) {
@@ -292,24 +295,35 @@
     }
 
     function applyVideoOrientation() {
-        // Default tidak mirror. Opsional putar 180° jika hardware terpasang terbalik.
-        video.style.transform = rotated180 ? 'rotate(180deg)' : 'none';
+        var parts = [];
+        if (mirrorX) parts.push('scaleX(-1)');
+        if (rotated180) parts.push('rotate(180deg)');
+        video.style.transform = parts.length ? parts.join(' ') : 'none';
     }
 
     function tick() {
         if (!isScanning) return;
         if (video.readyState === video.HAVE_ENOUGH_DATA) {
-            canvas.width  = video.videoWidth;
-            canvas.height = video.videoHeight;
+            var w = video.videoWidth;
+            var h = video.videoHeight;
+            canvas.width  = w;
+            canvas.height = h;
             var ctx = canvas.getContext('2d');
             ctx.save();
-            if (rotated180) {
-                ctx.translate(canvas.width, canvas.height);
+            // Samakan dengan preview agar QR terbaca benar
+            if (mirrorX && rotated180) {
+                ctx.translate(w, h);
+                ctx.scale(-1, -1);
+            } else if (mirrorX) {
+                ctx.translate(w, 0);
+                ctx.scale(-1, 1);
+            } else if (rotated180) {
+                ctx.translate(w, h);
                 ctx.rotate(Math.PI);
             }
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            ctx.drawImage(video, 0, 0, w, h);
             ctx.restore();
-            var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            var imageData = ctx.getImageData(0, 0, w, h);
             var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
             if (code && code.data) {
                 onScanSuccess(code.data);
@@ -417,10 +431,15 @@
         }
     }
 
+    document.getElementById('btnMirrorCam').addEventListener('click', function() {
+        mirrorX = !mirrorX;
+        applyVideoOrientation();
+        this.textContent = mirrorX ? 'Kiri-Kanan ✓' : 'Kiri-Kanan';
+    });
     document.getElementById('btnFlipCam').addEventListener('click', function() {
         rotated180 = !rotated180;
         applyVideoOrientation();
-        this.textContent = rotated180 ? 'Normalkan' : 'Putar 180°';
+        this.textContent = rotated180 ? 'Putar 180° ✓' : 'Putar 180°';
     });
 
     document.addEventListener('DOMContentLoaded', function() {
