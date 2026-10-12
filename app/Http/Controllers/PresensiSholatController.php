@@ -14,6 +14,13 @@ class PresensiSholatController extends Controller
 {
     private const API_BASE_URL_PRESENSI_SHOLAT = 'http://vps1.smartpayment.co.id:8888/Data/Malang_Arrohmah_Putri_PresensiSholat/WebAPI.php';
     private const JWT_SECRET = 'a7c2a8a9b3c4a5a6a7a8a9b0c1a2a3';
+    // WebAPI VPS bisa butuh 20-45 detik per request
+    private const API_TIMEOUT = 60;
+
+    public function __construct()
+    {
+        @set_time_limit(self::API_TIMEOUT + 30);
+    }
 
     public function showQr()
     {
@@ -70,7 +77,7 @@ class PresensiSholatController extends Controller
                 'token_preview' => substr($token, 0, 40) . '...',
             ]);
 
-            $response = Http::timeout(15)
+            $response = Http::connectTimeout(10)->timeout(self::API_TIMEOUT)
                 ->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
         } catch (\Throwable $e) {
             Log::error('POSTSholat error calling external API', [
@@ -186,7 +193,7 @@ class PresensiSholatController extends Controller
                 'token_preview' => substr($token, 0, 40) . '...',
             ]);
 
-            $response = Http::timeout(15)
+            $response = Http::connectTimeout(10)->timeout(self::API_TIMEOUT)
                 ->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
         } catch (\Throwable $e) {
             Log::error('POSTHaid error calling external API', [
@@ -305,7 +312,7 @@ class PresensiSholatController extends Controller
                 'payload'  => $payload,
             ]);
 
-            $response = Http::timeout(15)
+            $response = Http::connectTimeout(10)->timeout(self::API_TIMEOUT)
                 ->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
 
             if ($response->ok()) {
@@ -384,7 +391,7 @@ class PresensiSholatController extends Controller
                 'payload'  => $payload,
             ]);
 
-            $response = Http::timeout(15)
+            $response = Http::connectTimeout(10)->timeout(self::API_TIMEOUT)
                 ->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
 
             if ($response->ok()) {
@@ -478,7 +485,7 @@ class PresensiSholatController extends Controller
             $list  = [];
 
             try {
-                $response = Http::timeout(20)
+                $response = Http::connectTimeout(10)->timeout(self::API_TIMEOUT)
                     ->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
 
                 if ($response->ok()) {
@@ -644,7 +651,7 @@ class PresensiSholatController extends Controller
             $list  = [];
 
             try {
-                $response = Http::timeout(25)
+                $response = Http::connectTimeout(10)->timeout(self::API_TIMEOUT)
                     ->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
 
                 if ($response->ok()) {
@@ -718,7 +725,7 @@ class PresensiSholatController extends Controller
             $list = [];
 
             try {
-                $response = Http::timeout(25)->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
+                $response = Http::connectTimeout(10)->timeout(self::API_TIMEOUT)->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
 
                 if ($response->ok()) {
                     $data = $response->json();
@@ -777,7 +784,7 @@ class PresensiSholatController extends Controller
             $list  = [];
 
             try {
-                $response = Http::timeout(25)
+                $response = Http::connectTimeout(10)->timeout(self::API_TIMEOUT)
                     ->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
 
                 if ($response->ok()) {
@@ -849,7 +856,7 @@ class PresensiSholatController extends Controller
         $token = $this->generateJwt($payload);
 
         try {
-            $response = Http::timeout(15)
+            $response = Http::connectTimeout(10)->timeout(self::API_TIMEOUT)
                 ->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
 
             $data = $response->json();
@@ -925,7 +932,7 @@ class PresensiSholatController extends Controller
         $entries = [];
 
         try {
-            $response = Http::timeout(20)
+            $response = Http::connectTimeout(10)->timeout(self::API_TIMEOUT)
                 ->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
 
             if ($response->ok()) {
@@ -990,7 +997,7 @@ class PresensiSholatController extends Controller
         $entries = [];
 
         try {
-            $response = Http::timeout(20)
+            $response = Http::connectTimeout(10)->timeout(self::API_TIMEOUT)
                 ->get(self::API_BASE_URL_PRESENSI_SHOLAT . '?token=' . urlencode($token));
 
             if ($response->ok()) {
