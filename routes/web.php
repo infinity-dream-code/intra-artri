@@ -69,6 +69,7 @@ Route::middleware(['check.auth'])->group(function () {
 
     Route::get('/kepsek/uang-saku', [UangSakuController::class, 'show'])->name('kepsek.uang-saku');
     Route::get('/kepsek/uang-saku/data', [UangSakuController::class, 'data'])->name('kepsek.uang-saku.data');
+    Route::get('/kepsek/uang-saku/filters', [UangSakuController::class, 'filters'])->name('kepsek.uang-saku.filters');
     Route::get('/kepsek/uang-saku/summary', [UangSakuController::class, 'summary'])->name('kepsek.uang-saku.summary');
     Route::get('/kepsek/uang-saku/laporan', [UangSakuController::class, 'laporan'])->name('kepsek.uang-saku.laporan');
 

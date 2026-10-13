@@ -362,7 +362,7 @@
 
 <script>
 const routes = {
-    filters: @json(route('kepsek.tagihan-periode.filters')),
+    filters: @json(route('kepsek.uang-saku.filters')),
     kelas: @json(route('kepsek.tagihan-periode.kelas')),
     data: @json(route('kepsek.uang-saku.data')),
     summary: @json(route('kepsek.uang-saku.summary')),
@@ -448,7 +448,10 @@ function multiLabel(selected, allLabel) {
 }
 
 /* ---------- Load filter ---------- */
+let filterError = '';
+
 async function loadFilterOptions() {
+    filterError = '';
     try {
         const json = await getJson(routes.filters);
         sekolahOptions = (json.sekolah || []).map(s => typeof s === 'string' ? { value: s, label: s } : { value: s.value, label: s.label || s.value });
@@ -457,14 +460,15 @@ async function loadFilterOptions() {
             `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
     } catch (e) {
         sekolahOptions = [];
+        filterError = e.message || 'Gagal memuat filter';
         document.getElementById('filterBta').innerHTML = '<option value="">Semua angkatan</option>';
     }
 
     if (canMultiSekolah) {
-        renderCheckboxList('filterSekolahList', sekolahOptions, selectedSekolahMulti, 'Tidak ada sekolah');
+        renderCheckboxList('filterSekolahList', sekolahOptions, selectedSekolahMulti, filterError || 'Tidak ada sekolah');
     } else {
         const sel = document.getElementById('filterSekolah');
-        sel.innerHTML = '<option value="">Semua sekolah/unit</option>' + sekolahOptions.map(s =>
+        sel.innerHTML = `<option value="">${filterError ? 'Gagal memuat sekolah' : 'Semua sekolah/unit'}</option>` + sekolahOptions.map(s =>
             `<option value="${escapeHtml(s.value)}">${escapeHtml(s.label)}</option>`).join('');
         if (sekolahOptions.length === 1) sel.value = sekolahOptions[0].value;
     }

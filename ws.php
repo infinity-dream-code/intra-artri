@@ -2195,6 +2195,44 @@ function getUangSakuSiswa(array $req, ?string $code01): void
     exit;
 }
 
+function getUangSakuFilters(array $req, ?string $code01): void
+{
+    denyUangSakuIfKepsek($req);
+    $pdo = dbConnectPdo();
+
+    $sekolah = parseCode01List($code01);
+    if (empty($sekolah)) {
+        $stmt = $pdo->query("
+            SELECT DISTINCT unit FROM mst_kelas
+            WHERE unit IS NOT NULL AND unit != ''
+            ORDER BY unit ASC
+        ");
+        $sekolah = array_values(array_filter(array_map(
+            fn($r) => trim((string) $r["unit"]),
+            $stmt->fetchAll()
+        ), fn($v) => $v !== ""));
+    }
+
+    $bta = [];
+    if (($req["with_bta"] ?? "1") !== "0") {
+        $stmtBta = $pdo->query("
+            SELECT DISTINCT BTA FROM scctbill
+            WHERE FSTSBolehBayar = 1 AND BTA IS NOT NULL AND BTA != ''
+            ORDER BY BTA DESC
+            LIMIT 50
+        ");
+        $bta = array_column($stmtBta->fetchAll(), "BTA");
+    }
+
+    http_response_code(200);
+    echo json_encode([
+        "status" => 200,
+        "sekolah" => $sekolah,
+        "bta" => $bta,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 function getUangSakuSummary(array $req, ?string $code01): void
 {
     denyUangSakuIfKepsek($req);
@@ -3603,6 +3641,11 @@ try {
 
     if ($method === "getUangSakuSiswa") {
         getUangSakuSiswa($req, $code01);
+        exit;
+    }
+
+    if ($method === "getUangSakuFilters") {
+        getUangSakuFilters($req, $code01);
         exit;
     }
 

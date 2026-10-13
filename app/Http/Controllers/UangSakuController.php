@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -85,6 +86,42 @@ class UangSakuController extends Controller
             'success' => true,
             'data' => $rows,
             'has_more' => (bool) ($result['has_more'] ?? false),
+        ]);
+    }
+
+    public function filters()
+    {
+        if (!$this->allowed()) {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak'], 403);
+        }
+
+        $sekolahKey = 'uang_saku_sekolah_' . md5((string) session('user.code01', ''));
+        $sekolah = Cache::get($sekolahKey);
+        if (!is_array($sekolah)) {
+            $r = $this->callWs('getUangSakuFilters', ['with_bta' => '0'], 30);
+            $sekolah = ($r['status'] ?? 0) === 200 ? ($r['sekolah'] ?? []) : null;
+            if (is_array($sekolah)) {
+                Cache::put($sekolahKey, $sekolah, now()->addHours(6));
+            }
+        }
+
+        $bta = Cache::get('uang_saku_bta');
+        if (!is_array($bta)) {
+            $r = $this->callWs('getUangSakuFilters', ['with_bta' => '1'], 60);
+            $bta = ($r['status'] ?? 0) === 200 ? ($r['bta'] ?? []) : null;
+            if (is_array($bta) && !empty($bta)) {
+                Cache::put('uang_saku_bta', $bta, now()->addHours(12));
+            }
+        }
+
+        if ($sekolah === null && $bta === null) {
+            return response()->json(['success' => false, 'message' => 'Gagal memuat filter, coba muat ulang halaman.'], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'sekolah' => $sekolah ?? [],
+            'bta' => $bta ?? [],
         ]);
     }
 
