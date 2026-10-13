@@ -75,9 +75,14 @@ class UangSakuController extends Controller
             ], 422);
         }
 
+        $rows = array_map(function ($row) {
+            $row['va'] = $this->buildVaUangSaku((array) $row);
+            return $row;
+        }, $result['data'] ?? []);
+
         return response()->json([
             'success' => true,
-            'data' => $result['data'] ?? [],
+            'data' => $rows,
             'has_more' => (bool) ($result['has_more'] ?? false),
             'summary' => $result['summary'] ?? ['jumlah_santri' => 0, 'total_saldo' => 0],
         ]);
