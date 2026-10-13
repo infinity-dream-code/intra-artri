@@ -214,6 +214,10 @@
                         <label for="filterSekolah">Sekolah / Unit</label>
                         <select id="filterSekolah"><option value="">Memuat...</option></select>
                     </div>
+                    <div class="field">
+                        <label for="filterBta">Angkatan (Tahun Ajaran)</label>
+                        <select id="filterBta"><option value="">Memuat...</option></select>
+                    </div>
                     <div class="field field-tagihan">
                         <label for="filterKelasBtn">Kelas / Program</label>
                         <button type="button" id="filterKelasBtn" class="tagihan-select-btn" disabled>
@@ -361,6 +365,7 @@ const routes = {
     filters: @json(route('kepsek.tagihan-periode.filters')),
     kelas: @json(route('kepsek.tagihan-periode.kelas')),
     data: @json(route('kepsek.uang-saku.data')),
+    summary: @json(route('kepsek.uang-saku.summary')),
     laporan: @json(route('kepsek.uang-saku.laporan')),
 };
 const canMultiSekolah = @json((bool) ($canMultiSelectSekolah ?? false));
@@ -447,8 +452,12 @@ async function loadFilterOptions() {
     try {
         const json = await getJson(routes.filters);
         sekolahOptions = (json.sekolah || []).map(s => typeof s === 'string' ? { value: s, label: s } : { value: s.value, label: s.label || s.value });
+        const btaSel = document.getElementById('filterBta');
+        btaSel.innerHTML = '<option value="">Semua angkatan</option>' + (json.bta || []).map(v =>
+            `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
     } catch (e) {
         sekolahOptions = [];
+        document.getElementById('filterBta').innerHTML = '<option value="">Semua angkatan</option>';
     }
 
     if (canMultiSekolah) {
@@ -511,29 +520,69 @@ function setState(state, text) {
     if (text) document.getElementById('emptyStateText').textContent = text;
 }
 
-async function loadSiswaList(resetPage) {
-    if (resetPage) currentPage = 1;
-    updatePeriodLabel();
-    setState('loading');
-    document.getElementById('paginationBar').style.display = 'none';
-    document.getElementById('sumSiswa').innerHTML = '<span class="spinner-sm"></span> Menghitung...';
-    document.getElementById('sumSaldo').innerHTML = '<span class="spinner-sm"></span> Menghitung...';
+let listSeq = 0;
+let summarySeq = 0;
+let summaryTotal = null;
+let lastRowCount = 0;
 
+function buildFilterQuery() {
     const q = new URLSearchParams();
     getSelectedSekolah().forEach(s => q.append('sekolah[]', s));
     selectedKelas.forEach(k => q.append('kelas[]', k));
+    const bta = document.getElementById('filterBta').value;
+    if (bta) q.set('bta', bta);
     const search = document.getElementById('filterSearch').value.trim();
     if (search) q.set('search', search);
+    return q;
+}
+
+function updatePaginationInfo() {
+    const start = lastRowCount ? (currentPage - 1) * pageSize + 1 : 0;
+    const end = (currentPage - 1) * pageSize + lastRowCount;
+    const dari = summaryTotal === null ? '' : ` dari ${summaryTotal.toLocaleString('id-ID')} siswa`;
+    document.getElementById('paginationInfo').textContent = `Menampilkan ${start}–${end}${dari}`;
+}
+
+async function loadSummary() {
+    const seq = ++summarySeq;
+    summaryTotal = null;
+    document.getElementById('sumSiswa').innerHTML = '<span class="spinner-sm"></span> Menghitung...';
+    document.getElementById('sumSaldo').innerHTML = '<span class="spinner-sm"></span> Menghitung...';
+    try {
+        const json = await getJson(routes.summary + '?' + buildFilterQuery().toString());
+        if (seq !== summarySeq) return;
+        const summary = json.summary || {};
+        summaryTotal = Number(summary.jumlah_santri || 0);
+        document.getElementById('sumSiswa').textContent = summaryTotal.toLocaleString('id-ID');
+        document.getElementById('sumSaldo').textContent = formatRupiah(summary.total_saldo);
+        updatePaginationInfo();
+    } catch (e) {
+        if (seq !== summarySeq) return;
+        document.getElementById('sumSiswa').textContent = '-';
+        document.getElementById('sumSaldo').textContent = '-';
+    }
+}
+
+async function loadSiswaList(resetPage) {
+    if (resetPage) {
+        currentPage = 1;
+        loadSummary();
+    }
+    const seq = ++listSeq;
+    updatePeriodLabel();
+    setState('loading');
+    document.getElementById('paginationBar').style.display = 'none';
+
+    const q = buildFilterQuery();
     q.set('page', currentPage);
     q.set('limit', pageSize);
 
     try {
         const json = await getJson(routes.data + '?' + q.toString());
+        if (seq !== listSeq) return;
         const rows = json.data || [];
         hasMore = !!json.has_more;
-        const summary = json.summary || {};
-        document.getElementById('sumSiswa').textContent = Number(summary.jumlah_santri || 0).toLocaleString('id-ID');
-        document.getElementById('sumSaldo').textContent = formatRupiah(summary.total_saldo);
+        lastRowCount = rows.length;
 
         if (!rows.length) {
             setState('empty', 'Tidak ada data siswa');
@@ -541,18 +590,14 @@ async function loadSiswaList(resetPage) {
             renderRows(rows);
             setState('data');
         }
-        const total = Number(summary.jumlah_santri || 0);
-        const start = rows.length ? (currentPage - 1) * pageSize + 1 : 0;
-        const end = (currentPage - 1) * pageSize + rows.length;
-        document.getElementById('paginationInfo').textContent = `Menampilkan ${start}–${end} dari ${total.toLocaleString('id-ID')} siswa`;
+        updatePaginationInfo();
         document.getElementById('btnPageNum').textContent = String(currentPage);
         document.getElementById('btnPrev').disabled = currentPage <= 1;
         document.getElementById('btnNext').disabled = !hasMore;
         document.getElementById('paginationBar').style.display = rows.length || currentPage > 1 ? 'flex' : 'none';
     } catch (e) {
+        if (seq !== listSeq) return;
         setState('empty', e.message);
-        document.getElementById('sumSiswa').textContent = '-';
-        document.getElementById('sumSaldo').textContent = '-';
     }
 }
 
@@ -612,6 +657,7 @@ document.getElementById('btnSekolahApply').addEventListener('click', async () =>
     loadSiswaList(true);
 });
 document.getElementById('filterSekolah').addEventListener('change', async () => { await loadKelas(); loadSiswaList(true); });
+document.getElementById('filterBta').addEventListener('change', () => loadSiswaList(true));
 
 document.getElementById('btnKelasClear').addEventListener('click', () => {
     document.querySelectorAll('#filterKelasList input').forEach(i => { i.checked = false; });
@@ -627,11 +673,12 @@ document.getElementById('btnSearch').addEventListener('click', () => loadSiswaLi
 document.getElementById('filterSearch').addEventListener('keydown', e => { if (e.key === 'Enter') loadSiswaList(true); });
 document.getElementById('filterTglDari').addEventListener('change', updatePeriodLabel);
 document.getElementById('filterTglSampai').addEventListener('change', updatePeriodLabel);
-document.getElementById('pageSizeSelect').addEventListener('change', e => { pageSize = parseInt(e.target.value, 10) || 10; loadSiswaList(true); });
+document.getElementById('pageSizeSelect').addEventListener('change', e => { pageSize = parseInt(e.target.value, 10) || 10; currentPage = 1; loadSiswaList(false); });
 document.getElementById('btnPrev').addEventListener('click', () => { if (currentPage > 1) { currentPage--; loadSiswaList(false); } });
 document.getElementById('btnNext').addEventListener('click', () => { if (hasMore) { currentPage++; loadSiswaList(false); } });
 document.getElementById('btnReset').addEventListener('click', async () => {
     document.getElementById('filterSearch').value = '';
+    document.getElementById('filterBta').value = '';
     document.getElementById('filterTglDari').value = defaultDari();
     document.getElementById('filterTglSampai').value = ymd(new Date());
     selectedSekolahMulti = [];

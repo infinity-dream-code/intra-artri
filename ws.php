@@ -2105,6 +2105,17 @@ function buildUangSakuSiswaWhere(array $req, ?string $code01, array &$params): s
         $sql .= " AND c.DESC02 IN (" . implode(",", $ph) . ") ";
     }
 
+    $bta = trim((string) ($req["bta"] ?? ""));
+    if ($bta !== "") {
+        $sql .= " AND EXISTS (
+            SELECT 1 FROM scctbill b_us
+            WHERE b_us.CUSTID = c.CUSTID
+              AND b_us.FSTSBolehBayar = 1
+              AND b_us.BTA = :us_bta
+        ) ";
+        $params[":us_bta"] = $bta;
+    }
+
     $search = trim((string) ($req["search"] ?? $req["nama"] ?? ""));
     if ($search !== "") {
         $sql .= " AND (c.NMCUST LIKE :us_q_nama OR c.NOCUST LIKE :us_q_nis) ";
@@ -2128,12 +2139,6 @@ function getUangSakuSiswa(array $req, ?string $code01): void
     $params = [];
     $where = buildUangSakuSiswaWhere($req, $code01, $params);
 
-    $saldoExpr = "(
-        SELECT COALESCE(SUM(t.KREDIT), 0) - COALESCE(SUM(t.DEBET), 0)
-        FROM sccttran t
-        WHERE t.CUSTID = c.CUSTID AND t.REFFBANK = '" . UANG_SAKU_REFFBANK . "'
-    )";
-
     $sql = "
         SELECT
             c.CUSTID AS custid,
@@ -2142,8 +2147,7 @@ function getUangSakuSiswa(array $req, ?string $code01): void
             c.DESC02 AS kelas,
             mk.unit AS sekolah,
             c.CODE01 AS code01,
-            c.NO_WA AS no_wa,
-            $saldoExpr AS saldo
+            c.NO_WA AS no_wa
         FROM scctcust c
         INNER JOIN mst_kelas mk ON mk.id = c.CODE03
         $where
@@ -2159,34 +2163,75 @@ function getUangSakuSiswa(array $req, ?string $code01): void
     if ($hasMore) {
         array_pop($rows);
     }
+
+    $saldoMap = [];
+    $custids = array_values(array_unique(array_map(fn($r) => (int) $r["custid"], $rows)));
+    if (!empty($custids)) {
+        $stmtSaldo = $pdo->prepare("
+            SELECT CUSTID, COALESCE(SUM(KREDIT), 0) - COALESCE(SUM(DEBET), 0) AS saldo
+            FROM sccttran
+            WHERE REFFBANK = '" . UANG_SAKU_REFFBANK . "'
+              AND CUSTID IN (" . implode(",", $custids) . ")
+            GROUP BY CUSTID
+        ");
+        $stmtSaldo->execute();
+        foreach ($stmtSaldo->fetchAll() as $s) {
+            $saldoMap[(int) $s["CUSTID"]] = (float) $s["saldo"];
+        }
+    }
+
     foreach ($rows as &$row) {
         $row["custid"] = (int) $row["custid"];
-        $row["saldo"] = (float) ($row["saldo"] ?? 0);
+        $row["saldo"] = $saldoMap[$row["custid"]] ?? 0.0;
     }
     unset($row);
-
-    $sqlSummary = "
-        SELECT COUNT(*) AS jumlah_santri, COALESCE(SUM(x.saldo), 0) AS total_saldo
-        FROM (
-            SELECT $saldoExpr AS saldo
-            FROM scctcust c
-            INNER JOIN mst_kelas mk ON mk.id = c.CODE03
-            $where
-        ) x
-    ";
-    $stmtSum = $pdo->prepare($sqlSummary);
-    bindParams($stmtSum, $params);
-    $stmtSum->execute();
-    $sum = $stmtSum->fetch() ?: [];
 
     http_response_code(200);
     echo json_encode([
         "status" => 200,
         "data" => $rows,
         "has_more" => $hasMore,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+function getUangSakuSummary(array $req, ?string $code01): void
+{
+    denyUangSakuIfKepsek($req);
+    $pdo = dbConnectPdo();
+
+    $params = [];
+    $where = buildUangSakuSiswaWhere($req, $code01, $params);
+    $stmtCount = $pdo->prepare("
+        SELECT COUNT(*) AS jumlah_santri
+        FROM scctcust c
+        INNER JOIN mst_kelas mk ON mk.id = c.CODE03
+        $where
+    ");
+    bindParams($stmtCount, $params);
+    $stmtCount->execute();
+    $count = $stmtCount->fetch() ?: [];
+
+    $paramsSaldo = [];
+    $whereSaldo = buildUangSakuSiswaWhere($req, $code01, $paramsSaldo);
+    $stmtSaldo = $pdo->prepare("
+        SELECT COALESCE(SUM(t.KREDIT), 0) - COALESCE(SUM(t.DEBET), 0) AS total_saldo
+        FROM sccttran t
+        INNER JOIN scctcust c ON c.CUSTID = t.CUSTID
+        INNER JOIN mst_kelas mk ON mk.id = c.CODE03
+        $whereSaldo
+          AND t.REFFBANK = '" . UANG_SAKU_REFFBANK . "'
+    ");
+    bindParams($stmtSaldo, $paramsSaldo);
+    $stmtSaldo->execute();
+    $saldo = $stmtSaldo->fetch() ?: [];
+
+    http_response_code(200);
+    echo json_encode([
+        "status" => 200,
         "summary" => [
-            "jumlah_santri" => (int) ($sum["jumlah_santri"] ?? 0),
-            "total_saldo" => (float) ($sum["total_saldo"] ?? 0),
+            "jumlah_santri" => (int) ($count["jumlah_santri"] ?? 0),
+            "total_saldo" => (float) ($saldo["total_saldo"] ?? 0),
         ],
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
@@ -3558,6 +3603,11 @@ try {
 
     if ($method === "getUangSakuSiswa") {
         getUangSakuSiswa($req, $code01);
+        exit;
+    }
+
+    if ($method === "getUangSakuSummary") {
+        getUangSakuSummary($req, $code01);
         exit;
     }
 

@@ -64,6 +64,7 @@ class UangSakuController extends Controller
             'sekolah' => $this->normalizeMultiValue($request->query('sekolah', [])),
             'kelas' => $this->normalizeMultiValue($request->query('kelas', [])),
             'search' => trim((string) $request->query('search', '')),
+            'bta' => trim((string) $request->query('bta', '')),
             'limit' => $limit,
             'offset' => ($page - 1) * $limit,
         ], 60);
@@ -84,6 +85,31 @@ class UangSakuController extends Controller
             'success' => true,
             'data' => $rows,
             'has_more' => (bool) ($result['has_more'] ?? false),
+        ]);
+    }
+
+    public function summary(Request $request)
+    {
+        if (!$this->allowed()) {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak'], 403);
+        }
+
+        $result = $this->callWs('getUangSakuSummary', [
+            'sekolah' => $this->normalizeMultiValue($request->query('sekolah', [])),
+            'kelas' => $this->normalizeMultiValue($request->query('kelas', [])),
+            'search' => trim((string) $request->query('search', '')),
+            'bta' => trim((string) $request->query('bta', '')),
+        ], 90);
+
+        if (($result['status'] ?? 0) !== 200) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'] ?? 'Gagal menghitung ringkasan',
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
             'summary' => $result['summary'] ?? ['jumlah_santri' => 0, 'total_saldo' => 0],
         ]);
     }
