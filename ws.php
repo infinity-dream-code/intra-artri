@@ -2168,11 +2168,9 @@ function getUangSakuSiswa(array $req, ?string $code01): void
     $custids = array_values(array_unique(array_map(fn($r) => (int) $r["custid"], $rows)));
     if (!empty($custids)) {
         $stmtSaldo = $pdo->prepare("
-            SELECT CUSTID, COALESCE(SUM(KREDIT), 0) - COALESCE(SUM(DEBET), 0) AS saldo
-            FROM sccttran
-            WHERE REFFBANK = '" . UANG_SAKU_REFFBANK . "'
-              AND CUSTID IN (" . implode(",", $custids) . ")
-            GROUP BY CUSTID
+            SELECT CUSTID, SALDO AS saldo
+            FROM v_saldo_saku
+            WHERE CUSTID IN (" . implode(",", $custids) . ")
         ");
         $stmtSaldo->execute();
         foreach ($stmtSaldo->fetchAll() as $s) {
@@ -2253,12 +2251,11 @@ function getUangSakuSummary(array $req, ?string $code01): void
     $paramsSaldo = [];
     $whereSaldo = buildUangSakuSiswaWhere($req, $code01, $paramsSaldo);
     $stmtSaldo = $pdo->prepare("
-        SELECT COALESCE(SUM(t.KREDIT), 0) - COALESCE(SUM(t.DEBET), 0) AS total_saldo
-        FROM sccttran t
-        INNER JOIN scctcust c ON c.CUSTID = t.CUSTID
+        SELECT COALESCE(SUM(v.SALDO), 0) AS total_saldo
+        FROM v_saldo_saku v
+        INNER JOIN scctcust c ON c.CUSTID = v.CUSTID
         INNER JOIN mst_kelas mk ON mk.id = c.CODE03
         $whereSaldo
-          AND t.REFFBANK = '" . UANG_SAKU_REFFBANK . "'
     ");
     bindParams($stmtSaldo, $paramsSaldo);
     $stmtSaldo->execute();
@@ -2397,9 +2394,9 @@ function getUangSakuLedger(array $req, ?string $code01): void
     }
 
     $stmtNow = $pdo->prepare("
-        SELECT COALESCE(SUM(KREDIT), 0) - COALESCE(SUM(DEBET), 0) AS saldo
-        FROM sccttran
-        WHERE CUSTID = :custid AND REFFBANK = '" . UANG_SAKU_REFFBANK . "'
+        SELECT COALESCE(SUM(SALDO), 0) AS saldo
+        FROM v_saldo_saku
+        WHERE CUSTID = :custid
     ");
     $stmtNow->bindValue(":custid", $custid, PDO::PARAM_INT);
     $stmtNow->execute();
