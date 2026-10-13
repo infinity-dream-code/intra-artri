@@ -581,7 +581,7 @@ class TagihanPeriodeController extends Controller
         $safeName = preg_replace('/[^A-Za-z0-9_\-]+/', '_', $nama !== '' ? $nama : $custid);
         $filename = 'laporan_siswa_' . $safeName . '_' . now('Asia/Jakarta')->format('Ymd_His') . '.pdf';
 
-        return $pdf->download($filename);
+        return $pdf->stream($filename);
     }
 
     public function exportInvoice(Request $request)

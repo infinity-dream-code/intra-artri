@@ -1746,7 +1746,7 @@ async function toggleSiswaDetail(btn, dataRow, siswa) {
     const laporanUrl = buildSiswaLaporanUrl(siswa);
     const laporanBtnHtml = `
         <a class="btn-laporan-siswa" href="${escapeHtml(laporanUrl)}" target="_blank" rel="noopener">
-            <i class="fas fa-file-pdf"></i> Download Laporan
+            <i class="fas fa-print"></i> Cetak Laporan
         </a>
     `;
 
