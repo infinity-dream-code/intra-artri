@@ -8,11 +8,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 
 class TagihanPeriodeController extends Controller
 {
     private const API_URL = 'http://10.99.23.111/ws_client/Malang_Arrohmah_Putri_Kepsek_Monitoring/index.php';
+    private const LAPORAN_SANTRI_DIR = 'laporan-santri';
     private const TAGIHAN_DAFTAR_ULANG = 'BIAYA Daftar Ulang Ajaran Baru';
 
     private function isHumas(): bool
@@ -458,6 +461,67 @@ class TagihanPeriodeController extends Controller
             return redirect()->route('dashboard');
         }
 
+        $data = $this->buildSiswaLaporanData($request);
+        if ($data === null) {
+            return redirect()
+                ->route('kepsek.tagihan-periode')
+                ->with('error', 'Data filter tidak lengkap untuk laporan siswa.');
+        }
+
+        return $this->renderSiswaLaporanPdf($data);
+    }
+
+    public function shareSiswaLaporan(Request $request)
+    {
+        if (session('user.app') !== 'monitoring-kepsek') {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak'], 403);
+        }
+
+        $data = $this->buildSiswaLaporanData($request);
+        if ($data === null) {
+            return response()->json(['success' => false, 'message' => 'Data filter tidak lengkap untuk laporan siswa.'], 422);
+        }
+
+        $token = Str::random(40);
+        Storage::disk('local')->put(self::LAPORAN_SANTRI_DIR . '/' . $token . '.json', json_encode($data));
+
+        return response()->json([
+            'success' => true,
+            'url' => route('laporan-santri.public', ['token' => $token]),
+        ]);
+    }
+
+    public function showPublicSiswaLaporan(string $token)
+    {
+        if (!preg_match('/^[A-Za-z0-9]{40}$/', $token)) {
+            abort(404);
+        }
+
+        $path = self::LAPORAN_SANTRI_DIR . '/' . $token . '.json';
+        if (!Storage::disk('local')->exists($path)) {
+            abort(404);
+        }
+
+        $data = json_decode((string) Storage::disk('local')->get($path), true);
+        if (!is_array($data) || !isset($data['view'], $data['filename'])) {
+            abort(404);
+        }
+
+        return $this->renderSiswaLaporanPdf($data);
+    }
+
+    private function renderSiswaLaporanPdf(array $data)
+    {
+        $pdf = Pdf::loadView('tagihan_siswa_pdf', array_merge($data['view'], [
+            'logoSrc' => $this->resolvePdfLogoSrc(),
+            'ttdSrc' => $this->resolvePdfImageSrc('ttd.png'),
+        ]))->setPaper('a4', 'portrait');
+
+        return $pdf->stream($data['filename']);
+    }
+
+    private function buildSiswaLaporanData(Request $request): ?array
+    {
         $custid = trim((string) $request->query('custid', ''));
         $bta = trim((string) $request->query('bta', ''));
         $tagihan = $this->normalizeMultiValue($request->query('tagihan', []));
@@ -478,9 +542,7 @@ class TagihanPeriodeController extends Controller
         }
 
         if ($custid === '' || $bta === '' || empty($tagihan)) {
-            return redirect()
-                ->route('kepsek.tagihan-periode')
-                ->with('error', 'Data filter tidak lengkap untuk laporan siswa.');
+            return null;
         }
 
         $billsResult = $this->callWs('getSiswaTagihanPeriode', [
@@ -545,10 +607,7 @@ class TagihanPeriodeController extends Controller
             ? (float) $qSisa
             : max(0, $sisaSebelumSaldo - max($saldoAmount, 0));
 
-        $logoSrc = $this->resolvePdfLogoSrc();
-        $ttdSrc = $this->resolvePdfImageSrc('ttd.png');
-
-        $pdf = Pdf::loadView('tagihan_siswa_pdf', [
+        $view = [
             'siswa' => [
                 'custid' => $custid,
                 'nama' => $nama !== '' ? $nama : ('Siswa #' . $custid),
@@ -574,14 +633,12 @@ class TagihanPeriodeController extends Controller
             'riwayat' => $riwayat,
             'generatedAt' => now('Asia/Jakarta')->format('d/m/Y H:i'),
             'admin' => (string) session('user.nama', session('user.username', '')),
-            'logoSrc' => $logoSrc,
-            'ttdSrc' => $ttdSrc,
-        ])->setPaper('a4', 'portrait');
+        ];
 
         $safeName = preg_replace('/[^A-Za-z0-9_\-]+/', '_', $nama !== '' ? $nama : $custid);
         $filename = 'laporan_siswa_' . $safeName . '_' . now('Asia/Jakarta')->format('Ymd_His') . '.pdf';
 
-        return $pdf->stream($filename);
+        return ['view' => $view, 'filename' => $filename];
     }
 
     public function exportInvoice(Request $request)

@@ -140,7 +140,8 @@ function login(array $req): void
     $code01 = $code01Raw !== "" ? $code01Raw : null;
 
     // kelompok: "humas" / 1 = humas (lock daftar ulang)
-    //           "superadmin" / 0 / kosong = admin biasa (filter mengikuti CODE01)
+    //           "superadmin" / "kepsek" = akses penuh (kepsek tanpa Laporan Uang Saku)
+    //           0 / kosong = admin biasa (filter mengikuti CODE01)
     $kelompokRaw = trim((string) ($user["kelompok"] ?? ""));
     $kelompokNorm = strtolower($kelompokRaw);
     $humas = ($kelompokNorm === "humas" || $kelompokNorm === "1") ? 1 : 0;
@@ -279,7 +280,7 @@ function isDaftarUlangOnly(array $req): bool
 function isSuperAdmin(array $req): bool
 {
     $kelompok = strtolower(trim((string) ($req["kelompok"] ?? "")));
-    return $kelompok === "superadmin";
+    return $kelompok === "superadmin" || $kelompok === "kepsek";
 }
 
 function requireSuperAdmin(array $req): void
@@ -2076,6 +2077,269 @@ function getSaldo(array $req, ?string $code01): void
     exit;
 }
 
+// Uang saku = sccttran dengan REFFBANK 29 (SPP memakai 27/28/22/31)
+const UANG_SAKU_REFFBANK = '29';
+
+function denyUangSakuIfKepsek(array $req): void
+{
+    if (strtolower(trim((string) ($req["kelompok"] ?? ""))) === "kepsek") {
+        http_response_code(403);
+        echo json_encode(["status" => 403, "message" => "Akses ditolak."], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
+function buildUangSakuSiswaWhere(array $req, ?string $code01, array &$params): string
+{
+    $sql = " WHERE c.STCUST = '1' ";
+    $sql .= buildSekolahFilterSql($req, $code01, $params, "us_sek");
+
+    $kelasList = normalizeMultiValue($req["kelas"] ?? []);
+    if (!empty($kelasList)) {
+        $ph = [];
+        foreach ($kelasList as $i => $val) {
+            $key = ":us_kelas_$i";
+            $ph[] = $key;
+            $params[$key] = $val;
+        }
+        $sql .= " AND c.DESC02 IN (" . implode(",", $ph) . ") ";
+    }
+
+    $search = trim((string) ($req["search"] ?? $req["nama"] ?? ""));
+    if ($search !== "") {
+        $sql .= " AND (c.NMCUST LIKE :us_q_nama OR c.NOCUST LIKE :us_q_nis) ";
+        $params[":us_q_nama"] = "%" . $search . "%";
+        $params[":us_q_nis"] = "%" . $search . "%";
+    }
+
+    return $sql;
+}
+
+function getUangSakuSiswa(array $req, ?string $code01): void
+{
+    denyUangSakuIfKepsek($req);
+    $limit = (int) ($req["limit"] ?? 10);
+    if (!in_array($limit, [10, 25, 50, 100], true)) {
+        $limit = 10;
+    }
+    $offset = max(0, (int) ($req["offset"] ?? 0));
+
+    $pdo = dbConnectPdo();
+    $params = [];
+    $where = buildUangSakuSiswaWhere($req, $code01, $params);
+
+    $saldoExpr = "(
+        SELECT COALESCE(SUM(t.KREDIT), 0) - COALESCE(SUM(t.DEBET), 0)
+        FROM sccttran t
+        WHERE t.CUSTID = c.CUSTID AND t.REFFBANK = '" . UANG_SAKU_REFFBANK . "'
+    )";
+
+    $sql = "
+        SELECT
+            c.CUSTID AS custid,
+            c.NOCUST AS nis,
+            c.NMCUST AS nama,
+            c.DESC02 AS kelas,
+            mk.unit AS sekolah,
+            c.CODE01 AS code01,
+            c.NO_WA AS no_wa,
+            $saldoExpr AS saldo
+        FROM scctcust c
+        INNER JOIN mst_kelas mk ON mk.id = c.CODE03
+        $where
+        ORDER BY mk.unit ASC, c.DESC02 ASC, c.NMCUST ASC
+        LIMIT " . ($limit + 1) . " OFFSET " . $offset;
+
+    $stmt = $pdo->prepare($sql);
+    bindParams($stmt, $params);
+    $stmt->execute();
+    $rows = $stmt->fetchAll();
+
+    $hasMore = count($rows) > $limit;
+    if ($hasMore) {
+        array_pop($rows);
+    }
+    foreach ($rows as &$row) {
+        $row["custid"] = (int) $row["custid"];
+        $row["saldo"] = (float) ($row["saldo"] ?? 0);
+    }
+    unset($row);
+
+    $sqlSummary = "
+        SELECT COUNT(*) AS jumlah_santri, COALESCE(SUM(x.saldo), 0) AS total_saldo
+        FROM (
+            SELECT $saldoExpr AS saldo
+            FROM scctcust c
+            INNER JOIN mst_kelas mk ON mk.id = c.CODE03
+            $where
+        ) x
+    ";
+    $stmtSum = $pdo->prepare($sqlSummary);
+    bindParams($stmtSum, $params);
+    $stmtSum->execute();
+    $sum = $stmtSum->fetch() ?: [];
+
+    http_response_code(200);
+    echo json_encode([
+        "status" => 200,
+        "data" => $rows,
+        "has_more" => $hasMore,
+        "summary" => [
+            "jumlah_santri" => (int) ($sum["jumlah_santri"] ?? 0),
+            "total_saldo" => (float) ($sum["total_saldo"] ?? 0),
+        ],
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+function getUangSakuLedger(array $req, ?string $code01): void
+{
+    denyUangSakuIfKepsek($req);
+    $custidRaw = trim((string) ($req["custid"] ?? ""));
+    if ($custidRaw === "" || !ctype_digit($custidRaw)) {
+        http_response_code(422);
+        echo json_encode(["status" => 422, "message" => "custid tidak valid"], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $custid = (int) $custidRaw;
+
+    $tglDari = trim((string) ($req["tgl_dari"] ?? ""));
+    $tglSampai = trim((string) ($req["tgl_sampai"] ?? ""));
+    foreach ([$tglDari, $tglSampai] as $tgl) {
+        if ($tgl !== "" && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tgl)) {
+            http_response_code(422);
+            echo json_encode(["status" => 422, "message" => "Format tanggal tidak valid"], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+    }
+    if ($tglDari !== "" && $tglSampai !== "" && $tglDari > $tglSampai) {
+        [$tglDari, $tglSampai] = [$tglSampai, $tglDari];
+    }
+
+    $pdo = dbConnectPdo();
+
+    // Santri harus berada di unit yang diizinkan untuk user ini
+    $paramsSiswa = [":custid" => $custid];
+    $sqlSiswa = "
+        SELECT c.CUSTID AS custid, c.NOCUST AS nis, c.NMCUST AS nama, c.DESC02 AS kelas,
+               mk.unit AS sekolah, c.CODE01 AS code01, c.NO_WA AS no_wa
+        FROM scctcust c
+        INNER JOIN mst_kelas mk ON mk.id = c.CODE03
+        WHERE c.CUSTID = :custid
+    " . buildSekolahFilterSql([], $code01, $paramsSiswa, "us_led") . " LIMIT 1";
+    $stmtSiswa = $pdo->prepare($sqlSiswa);
+    bindParams($stmtSiswa, $paramsSiswa);
+    $stmtSiswa->execute();
+    $siswa = $stmtSiswa->fetch();
+    if (!$siswa) {
+        http_response_code(404);
+        echo json_encode(["status" => 404, "message" => "Santri tidak ditemukan"], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $saldoAwal = 0.0;
+    if ($tglDari !== "") {
+        $stmtAwal = $pdo->prepare("
+            SELECT COALESCE(SUM(KREDIT), 0) - COALESCE(SUM(DEBET), 0) AS saldo
+            FROM sccttran
+            WHERE CUSTID = :custid AND REFFBANK = '" . UANG_SAKU_REFFBANK . "' AND TRXDATE < :tgl_dari
+        ");
+        $stmtAwal->bindValue(":custid", $custid, PDO::PARAM_INT);
+        $stmtAwal->bindValue(":tgl_dari", $tglDari . " 00:00:00", PDO::PARAM_STR);
+        $stmtAwal->execute();
+        $saldoAwal = (float) ($stmtAwal->fetch()["saldo"] ?? 0);
+    }
+
+    $paramsTrx = [":custid" => $custid];
+    $sqlTrx = "
+        SELECT
+            t.TRXDATE AS tanggal,
+            t.METODE AS metode,
+            t.FIDBANK AS fidbank,
+            t.KETERANGAN AS keterangan,
+            t.NOREFF AS noreff,
+            COALESCE(t.KREDIT, 0) AS kredit,
+            COALESCE(t.DEBET, 0) AS debet,
+            (
+                SELECT o.KETERANGAN FROM scctcashout o
+                WHERE o.TRANSNO = t.NOREFF AND o.CUSTID = t.CUSTID
+                LIMIT 1
+            ) AS ket_cashout
+        FROM sccttran t
+        WHERE t.CUSTID = :custid AND t.REFFBANK = '" . UANG_SAKU_REFFBANK . "'
+    ";
+    if ($tglDari !== "") {
+        $sqlTrx .= " AND t.TRXDATE >= :tgl_dari ";
+        $paramsTrx[":tgl_dari"] = $tglDari . " 00:00:00";
+    }
+    if ($tglSampai !== "") {
+        $sqlTrx .= " AND t.TRXDATE <= :tgl_sampai ";
+        $paramsTrx[":tgl_sampai"] = $tglSampai . " 23:59:59";
+    }
+    $sqlTrx .= " ORDER BY t.TRXDATE ASC, t.urut ASC LIMIT 5000 ";
+
+    $stmtTrx = $pdo->prepare($sqlTrx);
+    bindParams($stmtTrx, $paramsTrx);
+    $stmtTrx->execute();
+
+    $saldo = $saldoAwal;
+    $totalKredit = 0.0;
+    $totalDebet = 0.0;
+    $rows = [];
+    foreach ($stmtTrx->fetchAll() as $r) {
+        $kredit = (float) $r["kredit"];
+        $debet = (float) $r["debet"];
+        $saldo += $kredit - $debet;
+        $totalKredit += $kredit;
+        $totalDebet += $debet;
+
+        $ket = trim((string) ($r["ket_cashout"] ?? ""));
+        if ($ket === "") {
+            $ket = trim((string) ($r["keterangan"] ?? ""));
+        }
+        $parts = array_filter([
+            trim((string) ($r["metode"] ?? "")),
+            trim((string) ($r["fidbank"] ?? "")),
+            $ket,
+        ], fn ($p) => $p !== "");
+
+        $rows[] = [
+            "tanggal" => (string) $r["tanggal"],
+            "keterangan" => implode(" ", $parts),
+            "noreff" => trim((string) ($r["noreff"] ?? "")),
+            "kredit" => $kredit,
+            "debet" => $debet,
+            "saldo" => $saldo,
+        ];
+    }
+
+    $stmtNow = $pdo->prepare("
+        SELECT COALESCE(SUM(KREDIT), 0) - COALESCE(SUM(DEBET), 0) AS saldo
+        FROM sccttran
+        WHERE CUSTID = :custid AND REFFBANK = '" . UANG_SAKU_REFFBANK . "'
+    ");
+    $stmtNow->bindValue(":custid", $custid, PDO::PARAM_INT);
+    $stmtNow->execute();
+    $saldoSekarang = (float) ($stmtNow->fetch()["saldo"] ?? 0);
+
+    http_response_code(200);
+    echo json_encode([
+        "status" => 200,
+        "data" => [
+            "siswa" => $siswa,
+            "tgl_dari" => $tglDari,
+            "tgl_sampai" => $tglSampai,
+            "saldo_awal" => $saldoAwal,
+            "rows" => $rows,
+            "total_kredit" => $totalKredit,
+            "total_debet" => $totalDebet,
+            "saldo_akhir" => $saldo,
+            "saldo_sekarang" => $saldoSekarang,
+        ],
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 function saveRiwayatPenagihan(array $req, ?string $code01): void
 {
     $custid = trim((string) ($req["custid"] ?? ""));
@@ -3289,6 +3553,16 @@ try {
 
     if ($method === "getSaldo") {
         getSaldo($req, $code01);
+        exit;
+    }
+
+    if ($method === "getUangSakuSiswa") {
+        getUangSakuSiswa($req, $code01);
+        exit;
+    }
+
+    if ($method === "getUangSakuLedger") {
+        getUangSakuLedger($req, $code01);
         exit;
     }
 

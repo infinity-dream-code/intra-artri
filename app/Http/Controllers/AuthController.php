@@ -214,7 +214,7 @@ class AuthController extends Controller
                 }
             }
 
-            $isSuperadmin = $kelompokNorm === 'superadmin' ? 1 : 0;
+            $isSuperadmin = in_array($kelompokNorm, ['superadmin', 'kepsek'], true) ? 1 : 0;
 
             $request->session()->put('user', [
                 'username'      => $validated['username'],

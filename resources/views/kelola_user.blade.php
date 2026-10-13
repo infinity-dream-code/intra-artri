@@ -150,7 +150,7 @@
             <div class="drawer-logo"><img src="{{ asset('logo.png') }}" alt="Logo"></div>
             <div>
                 <div class="drawer-user-name">{{ session('user.nama', session('user.username')) }}</div>
-                <div class="drawer-user-role">Superadmin</div>
+                <div class="drawer-user-role">{{ strtolower(trim((string) session('user.kelompok', ''))) === 'kepsek' ? 'Kepsek' : 'Superadmin' }}</div>
             </div>
         </div>
         <button type="button" class="drawer-close" id="drawerClose" aria-label="Tutup menu" title="Tutup">
@@ -162,6 +162,7 @@
     <ul class="drawer-menu">
         <li class="drawer-item"><a href="{{ route('dashboard.monitoring-kepsek') }}" class="drawer-link"><span class="icon"><i class="fas fa-house"></i></span><span>Dashboard</span></a></li>
         <li class="drawer-item"><a href="{{ route('kepsek.tagihan-periode') }}" class="drawer-link"><span class="icon"><i class="fas fa-file-invoice-dollar"></i></span><span>Tagihan Periode</span></a></li>
+        @if(strtolower(trim((string) session('user.kelompok', ''))) !== 'kepsek')<li class="drawer-item"><a href="{{ route('kepsek.uang-saku') }}" class="drawer-link"><span class="icon"><i class="fas fa-wallet"></i></span><span>Laporan Uang Saku</span></a></li>@endif
         <li class="drawer-item"><a href="{{ route('kepsek.kelola-user') }}" class="drawer-link active"><span class="icon"><i class="fas fa-users-gear"></i></span><span>Kelola User</span></a></li>
         <li class="drawer-item"><a href="{{ route('kepsek.import-penagihan') }}" class="drawer-link"><span class="icon"><i class="fas fa-file-import"></i></span><span>Import Penagihan</span></a></li>
         <li class="drawer-item">
@@ -207,6 +208,7 @@
                         <option value="">(kosong / admin biasa)</option>
                         <option value="0">0 (admin biasa)</option>
                         <option value="superadmin">superadmin</option>
+                        <option value="kepsek">kepsek (seperti superadmin, tanpa Laporan Uang Saku)</option>
                         <option value="humas">humas</option>
                         <option value="1">1 (humas)</option>
                     </select>
@@ -269,7 +271,7 @@ function escapeHtml(str) {
 function kelompokBadge(val) {
     const v = String(val ?? '').trim();
     if (!v) return '<span class="muted">—</span>';
-    const cls = v.toLowerCase() === 'superadmin' ? 'superadmin' : (v.toLowerCase() === 'humas' || v === '1' ? 'humas' : '');
+    const cls = ['superadmin', 'kepsek'].includes(v.toLowerCase()) ? 'superadmin' : (v.toLowerCase() === 'humas' || v === '1' ? 'humas' : '');
     return `<span class="badge ${cls}">${escapeHtml(v)}</span>`;
 }
 

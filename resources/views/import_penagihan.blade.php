@@ -239,7 +239,7 @@
             <div class="drawer-logo"><img src="{{ asset('logo.png') }}" alt="Logo"></div>
             <div>
                 <div class="drawer-user-name">{{ session('user.nama', session('user.username')) }}</div>
-                <div class="drawer-user-role">Superadmin</div>
+                <div class="drawer-user-role">{{ strtolower(trim((string) session('user.kelompok', ''))) === 'kepsek' ? 'Kepsek' : 'Superadmin' }}</div>
             </div>
         </div>
         <button type="button" class="drawer-close" id="drawerClose" aria-label="Tutup menu" title="Tutup">
@@ -251,6 +251,7 @@
     <ul class="drawer-menu">
         <li class="drawer-item"><a href="{{ route('dashboard.monitoring-kepsek') }}" class="drawer-link"><span class="icon"><i class="fas fa-house"></i></span><span>Dashboard</span></a></li>
         <li class="drawer-item"><a href="{{ route('kepsek.tagihan-periode') }}" class="drawer-link"><span class="icon"><i class="fas fa-file-invoice-dollar"></i></span><span>Tagihan Periode</span></a></li>
+        @if(strtolower(trim((string) session('user.kelompok', ''))) !== 'kepsek')<li class="drawer-item"><a href="{{ route('kepsek.uang-saku') }}" class="drawer-link"><span class="icon"><i class="fas fa-wallet"></i></span><span>Laporan Uang Saku</span></a></li>@endif
         <li class="drawer-item"><a href="{{ route('kepsek.kelola-user') }}" class="drawer-link"><span class="icon"><i class="fas fa-users-gear"></i></span><span>Kelola User</span></a></li>
         <li class="drawer-item"><a href="{{ route('kepsek.import-penagihan') }}" class="drawer-link active"><span class="icon"><i class="fas fa-file-import"></i></span><span>Import Penagihan</span></a></li>
         <li class="drawer-item">

@@ -289,6 +289,14 @@
             text-decoration: none; font-family: inherit; cursor: pointer;
         }
         .btn-laporan-siswa:hover { background: #991b1b; color: #fff; }
+        .btn-wa-laporan {
+            display: inline-flex; align-items: center; gap: 6px;
+            border: none; border-radius: 8px; padding: 8px 12px;
+            background: #16a34a; color: #fff; font-size: .78rem; font-weight: 700;
+            font-family: inherit; cursor: pointer;
+        }
+        .btn-wa-laporan:hover { background: #15803d; }
+        .btn-wa-laporan:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
         .mini-total { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
         .mini-total .info-box { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; min-width: 0; }
         .mini-total .info-box .ib-label { display: block; font-size: .72rem; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
@@ -844,7 +852,7 @@
                     @if($restrictedTagihan ?? false)
                         Humas
                     @elseif((int) session('user.is_superadmin', 0) === 1 || strtolower(trim((string) session('user.kelompok', ''))) === 'superadmin')
-                        Superadmin
+                        {{ strtolower(trim((string) session('user.kelompok', ''))) === 'kepsek' ? 'Kepsek' : 'Superadmin' }}
                     @else
                         Kepala Sekolah
                     @endif
@@ -863,6 +871,7 @@
         @else
             <li class="drawer-item"><a href="{{ route('dashboard.monitoring-kepsek') }}" class="drawer-link"><span class="icon"><i class="fas fa-house"></i></span><span>Dashboard</span></a></li>
             <li class="drawer-item"><a href="{{ route('kepsek.tagihan-periode') }}" class="drawer-link active"><span class="icon"><i class="fas fa-file-invoice-dollar"></i></span><span>Tagihan Periode</span></a></li>
+            @if(strtolower(trim((string) session('user.kelompok', ''))) !== 'kepsek')<li class="drawer-item"><a href="{{ route('kepsek.uang-saku') }}" class="drawer-link"><span class="icon"><i class="fas fa-wallet"></i></span><span>Laporan Uang Saku</span></a></li>@endif
         @endif
         @if((int) session('user.is_superadmin', 0) === 1 || strtolower(trim((string) session('user.kelompok', ''))) === 'superadmin')
             <li class="drawer-item"><a href="{{ route('kepsek.kelola-user') }}" class="drawer-link"><span class="icon"><i class="fas fa-users-gear"></i></span><span>Kelola User</span></a></li>
@@ -891,6 +900,7 @@ const routes = {
     exportExcel: @json(route('kepsek.tagihan-periode.export-excel')),
     exportPdf: @json(route('kepsek.tagihan-periode.export-pdf')),
     siswaLaporan: @json(route('kepsek.tagihan-periode.siswa-laporan')),
+    siswaLaporanShare: @json(route('kepsek.tagihan-periode.siswa-laporan.share')),
     invoice: @json(route('kepsek.tagihan-periode.invoice')),
     catatPenagihan: @json(route('kepsek.tagihan-periode.catat-penagihan')),
     catatPenagihanStore: @json(route('kepsek.tagihan-periode.catat-penagihan.store')),
@@ -1064,6 +1074,54 @@ function openKirimTagihanWa(siswa) {
         ? ('https://api.whatsapp.com/send?phone=' + wa + '&text=' + text)
         : ('https://web.whatsapp.com/send?phone=' + wa + '&text=' + text);
     window.open(url, '_blank');
+}
+
+function buildLaporanWaMessage(link) {
+    return [
+        '\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u064e\u0651\u0647\u0650 \u0627\u0644\u0631\u064e\u0651\u062d\u0652\u0645\u064e\u0646\u0650 \u0627\u0644\u0631\u064e\u0651\u062d\u0650\u064a\u0645\u0650',
+        '',
+        'Assalamu\u2019alaikum warahmatullahi wabarakatuh.',
+        '',
+        'Bapak/Ibu Wali Santri yang kami hormati, berikut kami sampaikan laporan keuangan ananda untuk dapat diperiksa dan menjadi perhatian bersama.',
+        link,
+        'Terima kasih atas perhatian dan kerja sama Bapak/Ibu.',
+        '',
+        'Wassalamu\u2019alaikum warahmatullahi wabarakatuh.',
+    ].join('\n');
+}
+
+async function kirimLaporanWa(siswa, btn) {
+    const wa = normalizeWaNumber(siswa.no_wa);
+    if (!wa) {
+        Swal.fire({ icon: 'warning', title: 'Nomor WA kosong', text: 'Nomor WA wali santri belum tersedia.', confirmButtonColor: '#2563eb' });
+        return;
+    }
+
+    // Buka tab dulu saat klik, supaya tidak diblokir popup blocker setelah await
+    const win = window.open('about:blank', '_blank');
+    const qs = buildSiswaLaporanUrl(siswa).split('?')[1] || '';
+    if (btn) btn.disabled = true;
+
+    try {
+        const res = await fetch(routes.siswaLaporanShare + '?' + qs, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: apiHeaders({ 'X-CSRF-TOKEN': csrf }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.success || !json.url) {
+            throw new Error(json.message || 'Gagal membuat link laporan.');
+        }
+
+        const url = 'https://wa.me/' + wa + '?text=' + encodeURIComponent(buildLaporanWaMessage(json.url));
+        if (win) win.location.href = url;
+        else window.location.href = url;
+    } catch (err) {
+        if (win) win.close();
+        Swal.fire({ icon: 'error', title: 'Gagal', text: err.message || 'Gagal membuat link laporan.', confirmButtonColor: '#2563eb' });
+    } finally {
+        if (btn) btn.disabled = false;
+    }
 }
 
 function buildLaporanPenagihanUrl(siswa) {
@@ -1748,6 +1806,10 @@ async function toggleSiswaDetail(btn, dataRow, siswa) {
         <a class="btn-laporan-siswa" href="${escapeHtml(laporanUrl)}" target="_blank" rel="noopener">
             <i class="fas fa-print"></i> Cetak Laporan
         </a>
+        <button type="button" class="btn-wa-laporan btn-kirim-laporan-wa" data-custid="${escapeHtml(siswa.custid)}"
+            ${normalizeWaNumber(siswa.no_wa) ? '' : 'disabled title="Nomor WA wali belum ada"'}>
+            <i class="fab fa-whatsapp"></i> Kirim WA
+        </button>
     `;
 
     const headHtml = `
@@ -2209,6 +2271,14 @@ function bindSiswaTableDelegation() {
     const root = document.querySelector('.table-card');
     if (!root) return;
     root.addEventListener('click', function (e) {
+        const waLaporanBtn = e.target.closest('.btn-kirim-laporan-wa');
+        if (waLaporanBtn && root.contains(waLaporanBtn)) {
+            const custid = waLaporanBtn.dataset.custid;
+            const siswa = siswaRowsCurrent.find(r => String(r.custid) === String(custid)) || {};
+            kirimLaporanWa(siswa, waLaporanBtn);
+            return;
+        }
+
         const waBtn = e.target.closest('.btn-kirim-wa');
         if (waBtn && root.contains(waBtn)) {
             const custid = waBtn.dataset.custid;

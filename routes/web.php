@@ -9,11 +9,15 @@ use App\Http\Controllers\PerizinanController;
 use App\Http\Controllers\PresensiSholatController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\TagihanPeriodeController;
+use App\Http\Controllers\UangSakuController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [AuthController::class, 'showLogin'])->name('login.form');
 Route::post('/login', [AuthController::class, 'login'])->name('login');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+Route::get('/laporan-santri/{token}', [TagihanPeriodeController::class, 'showPublicSiswaLaporan'])
+    ->name('laporan-santri.public');
 
 Route::middleware(['check.auth'])->group(function () {
     Route::get('/dashboard', function () {
@@ -48,6 +52,7 @@ Route::middleware(['check.auth'])->group(function () {
     Route::get('/kepsek/tagihan-periode/export-excel', [TagihanPeriodeController::class, 'exportTagihanExcel'])->name('kepsek.tagihan-periode.export-excel');
     Route::get('/kepsek/tagihan-periode/export-pdf', [TagihanPeriodeController::class, 'exportTagihanPdf'])->name('kepsek.tagihan-periode.export-pdf');
     Route::get('/kepsek/tagihan-periode/siswa/laporan', [TagihanPeriodeController::class, 'exportSiswaLaporan'])->name('kepsek.tagihan-periode.siswa-laporan');
+    Route::post('/kepsek/tagihan-periode/siswa/laporan/share', [TagihanPeriodeController::class, 'shareSiswaLaporan'])->name('kepsek.tagihan-periode.siswa-laporan.share');
     Route::get('/kepsek/tagihan-periode/invoice', [TagihanPeriodeController::class, 'exportInvoice'])->name('kepsek.tagihan-periode.invoice');
     Route::get('/kepsek/tagihan-periode/siswa-uang-masuk', [TagihanPeriodeController::class, 'siswaUangMasuk'])->name('kepsek.tagihan-periode.siswa-uang-masuk');
     Route::get('/tagihan/siswa/periode/saldo', [TagihanPeriodeController::class, 'siswaSaldo'])->name('kepsek.tagihan-periode.siswa-saldo');
@@ -61,6 +66,10 @@ Route::middleware(['check.auth'])->group(function () {
         ->name('kepsek.tagihan-periode.laporan-penagihan');
     Route::get('/kepsek/tagihan-periode/riwayat-penagihan', [TagihanPeriodeController::class, 'riwayatPenagihan'])
         ->name('kepsek.tagihan-periode.riwayat-penagihan');
+
+    Route::get('/kepsek/uang-saku', [UangSakuController::class, 'show'])->name('kepsek.uang-saku');
+    Route::get('/kepsek/uang-saku/data', [UangSakuController::class, 'data'])->name('kepsek.uang-saku.data');
+    Route::get('/kepsek/uang-saku/laporan', [UangSakuController::class, 'laporan'])->name('kepsek.uang-saku.laporan');
 
     Route::get('/kepsek/kelola-user', [KelolaUserController::class, 'show'])->name('kepsek.kelola-user');
     Route::get('/kepsek/kelola-user/data', [KelolaUserController::class, 'index'])->name('kepsek.kelola-user.data');
