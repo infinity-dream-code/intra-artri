@@ -89,7 +89,7 @@
         .col-va { min-width: 140px; text-align: center; font-variant-numeric: tabular-nums; }
         .col-money { min-width: 120px; text-align: right; white-space: nowrap; font-weight: 700; font-size: .78rem !important; color: #2563eb; }
         .col-money.neg { color: #dc2626; }
-        .col-action { min-width: 130px; text-align: center; white-space: nowrap; }
+        .col-action { min-width: 260px; text-align: center; white-space: nowrap; }
         .nama-cell .nm { font-weight: 600; display: block; }
         .nama-cell .nis { font-size: .7rem; color: var(--muted); }
         .btn-laporan-siswa {
@@ -99,6 +99,9 @@
             text-decoration: none; font-family: inherit; cursor: pointer; white-space: nowrap;
         }
         .btn-laporan-siswa:hover { background: #991b1b; color: #fff; }
+        .btn-download-laporan { background: #0f766e; }
+        .btn-download-laporan:hover { background: #115e59; }
+        .action-pair { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
         .spinner { width: 30px; height: 30px; border: 3px solid rgba(37,99,235,.15); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 10px; }
         .spinner-sm { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(37,99,235,.15); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -145,7 +148,7 @@
         .m-money-item { background: #f8fafc; border-radius: 8px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
         .m-money-item span { font-size: .68rem; font-weight: 700; color: var(--muted); text-transform: uppercase; }
         .m-money-item b { font-size: .82rem; font-weight: 800; color: #2563eb; white-space: nowrap; }
-        .m-card .btn-laporan-siswa { width: 100%; justify-content: center; padding: 9px 10px; }
+        .m-card .btn-laporan-siswa { flex: 1 1 calc(50% - 3px); justify-content: center; padding: 9px 10px; }
         @media (max-width: 900px) {
             .main { padding: 14px; }
             .title { font-size: 1.15rem; }
@@ -503,13 +506,26 @@ async function loadKelas() {
 }
 
 /* ---------- Data ---------- */
-function buildLaporanUrl(custid) {
+function buildLaporanUrl(custid, download = false) {
     const q = new URLSearchParams({ custid: custid });
     const dari = document.getElementById('filterTglDari').value;
     const sampai = document.getElementById('filterTglSampai').value;
     if (dari) q.set('tgl_dari', dari);
     if (sampai) q.set('tgl_sampai', sampai);
+    if (download) q.set('download', '1');
     return routes.laporan + '?' + q.toString();
+}
+
+function laporanButtonsHtml(custid) {
+    return `
+        <div class="action-pair">
+            <a class="btn-laporan-siswa" href="${escapeHtml(buildLaporanUrl(custid))}" target="_blank" rel="noopener">
+                <i class="fas fa-print"></i> Cetak Laporan
+            </a>
+            <a class="btn-laporan-siswa btn-download-laporan" href="${escapeHtml(buildLaporanUrl(custid, true))}">
+                <i class="fas fa-download"></i> Download Laporan
+            </a>
+        </div>`;
 }
 
 function setState(state, text) {
@@ -620,11 +636,7 @@ function renderRows(rows) {
                 <td class="col-sekolah">${escapeHtml(r.sekolah || '-')}</td>
                 <td class="col-va">${escapeHtml(r.va || '-')}</td>
                 <td class="col-money ${saldo < 0 ? 'neg' : ''}">${formatRupiah(saldo)}</td>
-                <td class="col-action">
-                    <a class="btn-laporan-siswa" href="${escapeHtml(buildLaporanUrl(r.custid))}" target="_blank" rel="noopener">
-                        <i class="fas fa-print"></i> Cetak Laporan
-                    </a>
-                </td>
+                <td class="col-action">${laporanButtonsHtml(r.custid)}</td>
             </tr>`;
     }).join('');
 
@@ -639,9 +651,7 @@ function renderRows(rows) {
                 <span class="m-card-no">#${startNo + i}</span>
             </div>
             <div class="m-money-item"><span>Saldo Uang Saku</span><b>${formatRupiah(r.saldo)}</b></div>
-            <a class="btn-laporan-siswa" href="${escapeHtml(buildLaporanUrl(r.custid))}" target="_blank" rel="noopener">
-                <i class="fas fa-print"></i> Cetak Laporan
-            </a>
+            ${laporanButtonsHtml(r.custid)}
         </div>`).join('');
 }
 

@@ -187,7 +187,8 @@ class UangSakuController extends Controller
         ])->setPaper('a4', 'portrait');
 
         $safeName = preg_replace('/[^A-Za-z0-9_\-]+/', '_', (string) ($siswa['nama'] ?? $custid));
-        return $pdf->stream('uang_saku_' . $safeName . '_' . now('Asia/Jakarta')->format('Ymd_His') . '.pdf');
+        $filename = 'uang_saku_' . $safeName . '_' . now('Asia/Jakarta')->format('Ymd_His') . '.pdf';
+        return $request->boolean('download') ? $pdf->download($filename) : $pdf->stream($filename);
     }
 
     private function buildVaUangSaku(array $siswa): string
