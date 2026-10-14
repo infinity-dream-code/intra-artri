@@ -13,12 +13,7 @@ class UangSakuController extends Controller
     private const API_URL = 'http://10.99.23.111/ws_client/Malang_Arrohmah_Putri_Kepsek_Monitoring/index.php';
 
     /** Prefix VA uang saku per CODE01 siswa (VA SPP memakai 751xxx) */
-    private const VA_UANG_SAKU_PREFIX = [
-        '101' => '752027',
-        '102' => '752028',
-        '103' => '752022',
-        '104' => '752031',
-    ];
+    private const VA_UANG_SAKU_PREFIX = '752027';
 
     private function isHumas(): bool
     {
@@ -201,11 +196,10 @@ class UangSakuController extends Controller
         if ($nocust === '') {
             return '-';
         }
-        $prefix = self::VA_UANG_SAKU_PREFIX[trim((string) ($siswa['code01'] ?? ''))] ?? '';
-        if ($prefix !== '' && str_starts_with($nocust, $prefix)) {
+        if (str_starts_with($nocust, self::VA_UANG_SAKU_PREFIX) && strlen($nocust) > 10) {
             return $nocust;
         }
-        return $prefix . $nocust;
+        return self::VA_UANG_SAKU_PREFIX . $nocust;
     }
 
     private function normalizeMultiValue($value): array
