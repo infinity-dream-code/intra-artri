@@ -289,6 +289,8 @@
             text-decoration: none; font-family: inherit; cursor: pointer;
         }
         .btn-laporan-siswa:hover { background: #991b1b; color: #fff; }
+        .btn-download-laporan { background: #0f766e; }
+        .btn-download-laporan:hover { background: #115e59; }
         .btn-wa-laporan {
             display: inline-flex; align-items: center; gap: 6px;
             border: none; border-radius: 8px; padding: 8px 12px;
@@ -1778,15 +1780,6 @@ async function toggleSiswaDetail(btn, dataRow, siswa) {
         dataRow.after(hostEl);
     }
 
-    let saldoData = { saldo: 0, total_debet: 0, total_kredit: 0 };
-    try {
-        saldoData = await fetchSiswaSaldo(custid);
-    } catch (e) {
-        console.error('fetchSiswaSaldo error', e);
-    }
-
-    if (!dataRow.classList.contains('expanded')) return;
-
     const saldoTerpakai = Number(siswa.saldo_terpakai) || 0;
     const sisaSebelumSaldo = Number(siswa.sisa_tagihan_sebelum_saldo ?? siswa.sisa_tagihan) || 0;
     const periodeParts = [];
@@ -1806,13 +1799,16 @@ async function toggleSiswaDetail(btn, dataRow, siswa) {
         <a class="btn-laporan-siswa" href="${escapeHtml(laporanUrl)}" target="_blank" rel="noopener">
             <i class="fas fa-print"></i> Cetak Laporan
         </a>
+        <a class="btn-laporan-siswa btn-download-laporan" href="${escapeHtml(laporanUrl + (laporanUrl.includes('?') ? '&' : '?') + 'download=1')}">
+            <i class="fas fa-download"></i> Download Laporan
+        </a>
         <button type="button" class="btn-wa-laporan btn-kirim-laporan-wa" data-custid="${escapeHtml(siswa.custid)}"
             ${normalizeWaNumber(siswa.no_wa) ? '' : 'disabled title="Nomor WA wali belum ada"'}>
             <i class="fab fa-whatsapp"></i> Kirim WA
         </button>
     `;
 
-    const headHtml = `
+    const headHtml = (saldoValueHtml) => `
         <div class="siswa-panel-head">
             <div class="siswa-panel-title-row">
                 <div class="t">Detail Keuangan — ${escapeHtml((siswa.nama || '').toUpperCase())} ${kaderBadgeHtml(siswa)}</div>
@@ -1828,7 +1824,7 @@ async function toggleSiswaDetail(btn, dataRow, siswa) {
                 </div>
                 <div class="info-box ib-saldo">
                     <span class="ib-label">Saldo Spp</span>
-                    <span class="ib-value">${formatRupiah(saldoData.saldo || 0)}</span>
+                    <span class="ib-value">${saldoValueHtml}</span>
                 </div>
                 <div class="info-box ib-bayar">
                     <span class="ib-label">Total Bayar</span>
@@ -1843,10 +1839,10 @@ async function toggleSiswaDetail(btn, dataRow, siswa) {
         </div>
     `;
 
-    const bodyHtml = (billsHtml, uangMasukHtml, riwayatHtml) => `
+    const bodyHtml = (billsHtml, uangMasukHtml, riwayatHtml, saldoValueHtml) => `
         <div class="detail-layout">
             <div class="detail-main">
-                ${headHtml}
+                ${headHtml(saldoValueHtml)}
                 <div class="detail-tables">
                     <div class="detail-col detail-col-tagihan">
                         <div class="detail-col-title">Daftar Tagihan</div>
@@ -1867,7 +1863,7 @@ async function toggleSiswaDetail(btn, dataRow, siswa) {
     const loadingBills = '<div class="mini-loading"><div class="spinner"></div>Memuat tagihan siswa...</div>';
     const loadingUangMasuk = '<div class="mini-loading"><div class="spinner"></div>Memuat Data Pembayaran Santri...</div>';
     const loadingRiwayat = '<div class="riwayat-panel"><div class="mini-loading"><div class="spinner"></div>Memuat riwayat penagihan...</div></div>';
-    const loadingContent = bodyHtml(loadingBills, loadingUangMasuk, loadingRiwayat);
+    const loadingContent = bodyHtml(loadingBills, loadingUangMasuk, loadingRiwayat, '<span class="spinner-sm"></span>');
 
     if (isMobileCard) {
         hostEl.innerHTML = loadingContent;
@@ -1875,7 +1871,8 @@ async function toggleSiswaDetail(btn, dataRow, siswa) {
         hostEl.innerHTML = `<td colspan="13">${loadingContent}</td>`;
     }
 
-    const [billsResult, uangMasukResult, riwayatResult] = await Promise.allSettled([
+    const [saldoResult, billsResult, uangMasukResult, riwayatResult] = await Promise.allSettled([
+        fetchSiswaSaldo(custid),
         siswaBillsCache.has(cacheKey) ? Promise.resolve(siswaBillsCache.get(cacheKey)) : fetchSiswaBills(custid, bta),
         siswaUangMasukCache.has(custid) ? Promise.resolve(siswaUangMasukCache.get(custid)) : fetchSiswaUangMasuk(custid),
         siswaRiwayatCache.has(custid) ? Promise.resolve(siswaRiwayatCache.get(custid)) : fetchSiswaRiwayat(custid),
@@ -1908,7 +1905,11 @@ async function toggleSiswaDetail(btn, dataRow, siswa) {
         riwayatHtml = `<div class="riwayat-panel"><div class="mini-loading" style="color:#991b1b;">${escapeHtml(riwayatResult.reason?.message || 'Gagal memuat riwayat penagihan.')}</div></div>`;
     }
 
-    const finalContent = bodyHtml(billsHtml, uangMasukHtml, riwayatHtml);
+    if (saldoResult.status === 'rejected') {
+        console.error('fetchSiswaSaldo error', saldoResult.reason);
+    }
+    const saldoValue = saldoResult.status === 'fulfilled' ? (saldoResult.value?.saldo || 0) : 0;
+    const finalContent = bodyHtml(billsHtml, uangMasukHtml, riwayatHtml, formatRupiah(saldoValue));
     if (isMobileCard) {
         hostEl.innerHTML = finalContent;
     } else {

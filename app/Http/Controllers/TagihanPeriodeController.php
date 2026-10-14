@@ -468,7 +468,7 @@ class TagihanPeriodeController extends Controller
                 ->with('error', 'Data filter tidak lengkap untuk laporan siswa.');
         }
 
-        return $this->renderSiswaLaporanPdf($data);
+        return $this->renderSiswaLaporanPdf($data, $request->boolean('download'));
     }
 
     public function shareSiswaLaporan(Request $request)
@@ -510,14 +510,14 @@ class TagihanPeriodeController extends Controller
         return $this->renderSiswaLaporanPdf($data);
     }
 
-    private function renderSiswaLaporanPdf(array $data)
+    private function renderSiswaLaporanPdf(array $data, bool $download = false)
     {
         $pdf = Pdf::loadView('tagihan_siswa_pdf', array_merge($data['view'], [
             'logoSrc' => $this->resolvePdfLogoSrc(),
             'ttdSrc' => $this->resolvePdfImageSrc('ttd.png'),
         ]))->setPaper('a4', 'portrait');
 
-        return $pdf->stream($data['filename']);
+        return $download ? $pdf->download($data['filename']) : $pdf->stream($data['filename']);
     }
 
     private function buildSiswaLaporanData(Request $request): ?array
