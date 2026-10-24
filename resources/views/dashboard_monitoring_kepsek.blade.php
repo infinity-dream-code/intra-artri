@@ -351,6 +351,22 @@ function getSelectedSekolahValues() {
     const v = el ? String(el.value || '').trim() : '';
     return v ? [v] : [];
 }
+function currentAcademicYearBta() {
+    const now = new Date();
+    const start = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+    return start + '/' + (start + 1);
+}
+function pickCurrentAcademicBta(list) {
+    const items = (list || []).map(v => String(v ?? '').trim()).filter(Boolean);
+    if (!items.length) return '';
+    const target = currentAcademicYearBta();
+    const short = target.slice(2, 4) + '/' + target.slice(7, 9);
+    const found = items.find(v => v === target)
+        || items.find(v => v.replace(/\s+/g, '') === target)
+        || items.find(v => v === short || v.replace(/\s+/g, '') === short)
+        || items.find(v => v.includes(String(target.slice(0, 4))));
+    return found || '';
+}
 function currentMonthTagihanName() {
     const months = ['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
     return 'BULAN ' + months[new Date().getMonth()];
@@ -397,7 +413,7 @@ async function loadFilters() {
         opt.value = v; opt.textContent = v;
         btaSel.appendChild(opt);
     });
-    if ((json.bta || []).length) btaSel.value = json.bta[0];
+    btaSel.value = pickCurrentAcademicBta(json.bta);
 
     const sekolahList = (json.sekolah || []).map(item => {
         if (item && typeof item === 'object') return { value: String(item.value ?? '').trim(), label: String(item.label ?? item.value ?? '').trim() };

@@ -402,6 +402,22 @@
     function escapeHtml(str) {
         return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
+    function currentAcademicYearBta() {
+        const now = new Date();
+        const start = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+        return start + '/' + (start + 1);
+    }
+    function pickCurrentAcademicBta(list) {
+        const items = (list || []).map(v => String(v ?? '').trim()).filter(Boolean);
+        if (!items.length) return '';
+        const target = currentAcademicYearBta();
+        const short = target.slice(2, 4) + '/' + target.slice(7, 9);
+        return items.find(v => v === target)
+            || items.find(v => v.replace(/\s+/g, '') === target)
+            || items.find(v => v === short || v.replace(/\s+/g, '') === short)
+            || items.find(v => v.includes(String(target.slice(0, 4))))
+            || '';
+    }
 
     function getFilterParams() {
         return {
@@ -848,6 +864,8 @@
             });
             if (currentBta && json.bta.includes(currentBta)) {
                 btaSel.value = currentBta;
+            } else {
+                btaSel.value = pickCurrentAcademicBta(json.bta);
             }
 
             const kelasSel = document.getElementById('filterKelas');
@@ -1093,7 +1111,9 @@
             document.getElementById('filterKelas').disabled = true;
             document.getElementById('filterKelas').innerHTML = '<option value="">Pilih sekolah dulu</option>';
         }
-        document.getElementById('filterBta').value = '';
+        document.getElementById('filterBta').value = pickCurrentAcademicBta(
+            [...document.getElementById('filterBta').options].map(o => o.value).filter(Boolean)
+        );
         document.getElementById('filterStatus').value = '';
         document.getElementById('filterSearch').value = '';
         if (!isDaftarUlangOnly) {
