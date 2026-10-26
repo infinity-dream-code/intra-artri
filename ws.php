@@ -2815,6 +2815,113 @@ function listRiwayatPenagihan(array $req): void
     exit;
 }
 
+function updateRiwayatPenagihan(array $req): void
+{
+    requireSuperAdmin($req);
+
+    $id = trim((string) ($req["id"] ?? ""));
+    $tanggal = normalizePenagihanDate(trim((string) ($req["tanggal_komunikasi"] ?? "")));
+    $media = normalizePenagihanMedia(trim((string) ($req["media_komunikasi"] ?? "")));
+    $hasil = normalizePenagihanHasil(trim((string) ($req["hasil_komunikasi"] ?? "")));
+    $rencana = trim((string) ($req["rencana_pembayaran"] ?? ""));
+    $catatan = trim((string) ($req["catatan"] ?? ""));
+
+    $allowedMedia = ["WhatsApp", "Telepon"];
+    $allowedHasil = [
+        "Akan melakukan pembayaran",
+        "Sudah melakukan pembayaran",
+        "Meminta waktu pembayaran",
+        "Mengalami kendala pembayaran",
+        "Tidak dapat dihubungi",
+    ];
+
+    if ($id === "" || !ctype_digit($id)) {
+        http_response_code(422);
+        echo json_encode(["status" => 422, "message" => "ID riwayat tidak valid"], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if ($tanggal === "") {
+        http_response_code(422);
+        echo json_encode(["status" => 422, "message" => "Tanggal komunikasi wajib diisi"], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if (!in_array($media, $allowedMedia, true)) {
+        http_response_code(422);
+        echo json_encode(["status" => 422, "message" => "Media harus WhatsApp atau Telepon"], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if (!in_array($hasil, $allowedHasil, true)) {
+        http_response_code(422);
+        echo json_encode(["status" => 422, "message" => "Hasil komunikasi tidak valid"], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if (mb_strlen($catatan) > 250) {
+        http_response_code(422);
+        echo json_encode(["status" => 422, "message" => "Catatan maksimal 250 karakter"], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $pdo = dbConnectPdo();
+    $stmt = $pdo->prepare("
+        UPDATE tbl_riwayatpenagihan
+        SET tanggal_komunikasi = :tanggal_komunikasi,
+            media_komunikasi = :media_komunikasi,
+            hasil_komunikasi = :hasil_komunikasi,
+            rencana_pembayaran = :rencana_pembayaran,
+            catatan = :catatan
+        WHERE idincrement = :id
+    ");
+    $stmt->bindValue(":tanggal_komunikasi", $tanggal, PDO::PARAM_STR);
+    $stmt->bindValue(":media_komunikasi", $media, PDO::PARAM_STR);
+    $stmt->bindValue(":hasil_komunikasi", $hasil, PDO::PARAM_STR);
+    $stmt->bindValue(":rencana_pembayaran", $rencana, PDO::PARAM_STR);
+    $stmt->bindValue(":catatan", $catatan, PDO::PARAM_STR);
+    $stmt->bindValue(":id", (int) $id, PDO::PARAM_INT);
+    $stmt->execute();
+
+    if ($stmt->rowCount() < 1) {
+        $check = $pdo->prepare("SELECT idincrement FROM tbl_riwayatpenagihan WHERE idincrement = :id LIMIT 1");
+        $check->bindValue(":id", (int) $id, PDO::PARAM_INT);
+        $check->execute();
+        if (!$check->fetch()) {
+            http_response_code(404);
+            echo json_encode(["status" => 404, "message" => "Data riwayat tidak ditemukan"], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+    }
+
+    http_response_code(200);
+    echo json_encode(["status" => 200, "message" => "Riwayat penagihan berhasil diubah"], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+function deleteRiwayatPenagihan(array $req): void
+{
+    requireSuperAdmin($req);
+
+    $id = trim((string) ($req["id"] ?? ""));
+    if ($id === "" || !ctype_digit($id)) {
+        http_response_code(422);
+        echo json_encode(["status" => 422, "message" => "ID riwayat tidak valid"], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $pdo = dbConnectPdo();
+    $stmt = $pdo->prepare("DELETE FROM tbl_riwayatpenagihan WHERE idincrement = :id");
+    $stmt->bindValue(":id", (int) $id, PDO::PARAM_INT);
+    $stmt->execute();
+
+    if ($stmt->rowCount() < 1) {
+        http_response_code(404);
+        echo json_encode(["status" => 404, "message" => "Data riwayat tidak ditemukan"], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    http_response_code(200);
+    echo json_encode(["status" => 200, "message" => "Riwayat penagihan berhasil dihapus"], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 function getSummaryTagihan(array $req, ?string $code01): void
 {
     $pdo = dbConnectPdo();
@@ -3668,6 +3775,16 @@ try {
 
     if ($method === "listRiwayatPenagihan") {
         listRiwayatPenagihan($req);
+        exit;
+    }
+
+    if ($method === "updateRiwayatPenagihan") {
+        updateRiwayatPenagihan($req);
+        exit;
+    }
+
+    if ($method === "deleteRiwayatPenagihan") {
+        deleteRiwayatPenagihan($req);
         exit;
     }
 

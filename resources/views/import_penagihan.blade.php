@@ -110,6 +110,39 @@
         .per-page select {
             border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-family: inherit; font-size: .8rem; background: #fff;
         }
+        .col-aksi { white-space: nowrap; width: 1%; }
+        .row-actions { display: flex; gap: 6px; }
+        .btn-icon {
+            width: 32px; height: 32px; border: none; border-radius: 8px; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center; color: #fff;
+        }
+        .btn-edit { background: #2563eb; }
+        .btn-edit:hover { background: #1d4ed8; }
+        .btn-del { background: #dc2626; }
+        .btn-del:hover { background: #b91c1c; }
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 80; display: none; }
+        .modal-backdrop.open { display: block; }
+        .modal { position: fixed; inset: 0; z-index: 90; display: none; align-items: center; justify-content: center; padding: 16px; }
+        .modal.open { display: flex; }
+        .modal-card { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: #fff; border-radius: 16px; box-shadow: 0 20px 50px rgba(15,23,42,.25); padding: 20px 22px 18px; }
+        .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+        .modal-head h2 { margin: 0; font-size: 1.05rem; font-weight: 800; }
+        .modal-close { border: none; background: transparent; font-size: 1.4rem; line-height: 1; color: #64748b; cursor: pointer; }
+        .siswa-box { background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
+        .siswa-box .lbl { font-size: .72rem; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+        .siswa-box .nm { margin-top: 4px; font-size: 1rem; font-weight: 800; }
+        .siswa-box .sub { margin-top: 2px; font-size: .82rem; color: var(--muted); }
+        .field { margin-bottom: 14px; }
+        .field > label { display: block; font-size: .82rem; font-weight: 700; margin-bottom: 8px; }
+        .field > label em { color: #dc2626; font-style: normal; }
+        .field input[type="date"], .field input[type="text"], .field textarea, .field select {
+            width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; font-size: .88rem;
+        }
+        .field textarea { resize: vertical; min-height: 80px; }
+        .radios { display: flex; gap: 16px; flex-wrap: wrap; }
+        .radios label { display: flex; align-items: center; gap: 8px; font-size: .86rem; font-weight: 500; cursor: pointer; }
+        .counter { text-align: right; font-size: .72rem; color: var(--muted); margin-top: 4px; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
         @media (min-width: 960px) {
             .app.drawer-pinned { margin-left: 280px; }
             .drawer-backdrop { display: none !important; }
@@ -207,10 +240,11 @@
                             <th>Rencana Pembayaran</th>
                             <th>Catatan</th>
                             <th>Admin</th>
+                            <th class="col-aksi">Aksi</th>
                         </tr>
                     </thead>
                     <tbody id="listBody">
-                        <tr><td colspan="9" class="empty">Memuat data...</td></tr>
+                        <tr><td colspan="10" class="empty">Memuat data...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -230,6 +264,58 @@
             </div>
         </div>
     </main>
+</div>
+
+<div class="modal-backdrop" id="editBackdrop"></div>
+<div class="modal" id="editModal" role="dialog" aria-modal="true">
+    <div class="modal-card">
+        <div class="modal-head">
+            <h2>Edit Riwayat Penagihan</h2>
+            <button type="button" class="modal-close" id="btnCloseEdit" aria-label="Tutup">&times;</button>
+        </div>
+        <div class="siswa-box">
+            <div class="lbl">Siswa</div>
+            <div class="nm" id="editNama">-</div>
+            <div class="sub" id="editNis">NIS -</div>
+        </div>
+        <form id="formEdit">
+            <input type="hidden" id="editId">
+            <div class="field">
+                <label for="editTanggal">Tanggal Komunikasi <em>*</em></label>
+                <input type="date" id="editTanggal" required>
+            </div>
+            <div class="field">
+                <label>Media Komunikasi <em>*</em></label>
+                <div class="radios">
+                    <label><input type="radio" name="edit_media" value="WhatsApp" checked> WhatsApp</label>
+                    <label><input type="radio" name="edit_media" value="Telepon"> Telepon</label>
+                </div>
+            </div>
+            <div class="field">
+                <label for="editHasil">Hasil Komunikasi <em>*</em></label>
+                <select id="editHasil" required>
+                    <option value="Akan melakukan pembayaran">Akan melakukan pembayaran</option>
+                    <option value="Sudah melakukan pembayaran">Sudah melakukan pembayaran</option>
+                    <option value="Meminta waktu pembayaran">Meminta waktu pembayaran</option>
+                    <option value="Mengalami kendala pembayaran">Mengalami kendala pembayaran</option>
+                    <option value="Tidak dapat dihubungi">Tidak dapat dihubungi</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="editRencana">Rencana Pembayaran</label>
+                <input type="text" id="editRencana" maxlength="255">
+            </div>
+            <div class="field">
+                <label for="editCatatan">Catatan</label>
+                <textarea id="editCatatan" maxlength="250"></textarea>
+                <div class="counter"><span id="editCatatanCount">0</span>/250</div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="btnCancelEdit">Batal</button>
+                <button type="submit" class="btn btn-primary" id="btnSaveEdit"><i class="fas fa-save"></i> Simpan</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <div class="drawer-backdrop" id="drawerBackdrop"></div>
@@ -268,10 +354,13 @@
 const routes = {
     import: @json(route('kepsek.import-penagihan.store')),
     data: @json(route('kepsek.import-penagihan.data')),
+    update: @json(route('kepsek.import-penagihan.update')),
+    destroy: @json(route('kepsek.import-penagihan.delete')),
 };
 const csrf = @json(csrf_token());
 
 let state = { page: 1, perPage: 15, q: '', lastPage: 1, total: 0, loading: false };
+let rowsCache = {};
 let searchTimer = null;
 
 document.getElementById('fileInput').addEventListener('change', function () {
@@ -403,7 +492,7 @@ async function loadList() {
     if (state.loading) return;
     state.loading = true;
     const tbody = document.getElementById('listBody');
-    tbody.innerHTML = '<tr><td colspan="9" class="empty"><i class="fas fa-spinner fa-spin"></i> Memuat data...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty"><i class="fas fa-spinner fa-spin"></i> Memuat data...</td></tr>';
 
     const url = new URL(routes.data, window.location.origin);
     url.searchParams.set('page', String(state.page));
@@ -416,7 +505,7 @@ async function loadList() {
         });
         const json = await res.json();
         if (!json.success) {
-            tbody.innerHTML = `<tr><td colspan="9" class="empty">${escapeHtml(json.message || 'Gagal memuat data')}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="10" class="empty">${escapeHtml(json.message || 'Gagal memuat data')}</td></tr>`;
             document.getElementById('listMeta').textContent = '';
             document.getElementById('pagerNav').innerHTML = '';
             return;
@@ -436,9 +525,12 @@ async function loadList() {
             : 'Belum ada data';
 
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="9" class="empty">Belum ada data riwayat penagihan</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="empty">Belum ada data riwayat penagihan</td></tr>';
         } else {
-            tbody.innerHTML = rows.map((r, idx) => `
+            rowsCache = {};
+            tbody.innerHTML = rows.map((r, idx) => {
+                rowsCache[String(r.id)] = r;
+                return `
                 <tr>
                     <td>${from + idx}</td>
                     <td>${formatDate(r.tanggal_komunikasi)}</td>
@@ -449,19 +541,133 @@ async function loadList() {
                     <td class="cell-clamp" title="${escapeHtml(r.rencana_pembayaran || '')}">${escapeHtml(r.rencana_pembayaran || '-')}</td>
                     <td class="cell-clamp" title="${escapeHtml(r.catatan || '')}">${escapeHtml(r.catatan || '-')}</td>
                     <td class="cell-muted">${escapeHtml(r.admin || '-')}</td>
-                </tr>
-            `).join('');
+                    <td class="col-aksi">
+                        <div class="row-actions">
+                            <button type="button" class="btn-icon btn-edit" data-id="${escapeHtml(r.id)}" title="Edit"><i class="fas fa-pen"></i></button>
+                            <button type="button" class="btn-icon btn-del" data-id="${escapeHtml(r.id)}" title="Hapus"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
         }
         renderPager();
     } catch (err) {
         console.error(err);
-        tbody.innerHTML = '<tr><td colspan="9" class="empty">Tidak dapat terhubung ke server</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">Tidak dapat terhubung ke server</td></tr>';
         document.getElementById('listMeta').textContent = '';
         document.getElementById('pagerNav').innerHTML = '';
     } finally {
         state.loading = false;
     }
 }
+
+function toDateInput(val) {
+    if (!val) return '';
+    return String(val).slice(0, 10);
+}
+function closeEditModal() {
+    document.getElementById('editModal').classList.remove('open');
+    document.getElementById('editBackdrop').classList.remove('open');
+}
+function openEditModal(row) {
+    document.getElementById('editId').value = row.id || '';
+    document.getElementById('editNama').textContent = row.nama || '-';
+    document.getElementById('editNis').textContent = 'NIS ' + (row.nis || '-');
+    document.getElementById('editTanggal').value = toDateInput(row.tanggal_komunikasi);
+    const media = String(row.media_komunikasi || 'WhatsApp');
+    const mediaRadio = document.querySelector('input[name="edit_media"][value="' + (media === 'Telepon' ? 'Telepon' : 'WhatsApp') + '"]');
+    if (mediaRadio) mediaRadio.checked = true;
+    document.getElementById('editHasil').value = row.hasil_komunikasi || 'Akan melakukan pembayaran';
+    document.getElementById('editRencana').value = row.rencana_pembayaran || '';
+    document.getElementById('editCatatan').value = row.catatan || '';
+    document.getElementById('editCatatanCount').textContent = String((row.catatan || '').length);
+    document.getElementById('editModal').classList.add('open');
+    document.getElementById('editBackdrop').classList.add('open');
+}
+
+document.getElementById('listBody').addEventListener('click', async function (e) {
+    const editBtn = e.target.closest('.btn-edit');
+    if (editBtn) {
+        const row = rowsCache[String(editBtn.dataset.id)];
+        if (row) openEditModal(row);
+        return;
+    }
+    const delBtn = e.target.closest('.btn-del');
+    if (!delBtn) return;
+    const row = rowsCache[String(delBtn.dataset.id)];
+    if (!row) return;
+    const ask = await Swal.fire({
+        icon: 'warning',
+        title: 'Hapus riwayat?',
+        html: `Data penagihan <b>${escapeHtml(row.nama || row.nis || '')}</b> tanggal ${formatDate(row.tanggal_komunikasi)} akan dihapus.`,
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Ya, hapus',
+        cancelButtonText: 'Batal',
+    });
+    if (!ask.isConfirmed) return;
+    try {
+        const res = await fetch(routes.destroy, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+            body: JSON.stringify({ id: row.id, _token: csrf }),
+        });
+        const json = await res.json();
+        if (!json.success) {
+            Swal.fire({ icon: 'error', title: 'Gagal', text: json.message || 'Tidak bisa menghapus', confirmButtonColor: '#2563eb' });
+            return;
+        }
+        Swal.fire({ icon: 'success', title: 'Terhapus', text: json.message, confirmButtonColor: '#2563eb', timer: 1400, showConfirmButton: false });
+        loadList();
+    } catch (err) {
+        Swal.fire({ icon: 'error', title: 'Error', text: 'Tidak dapat terhubung ke server', confirmButtonColor: '#2563eb' });
+    }
+});
+
+document.getElementById('editCatatan').addEventListener('input', function () {
+    document.getElementById('editCatatanCount').textContent = String(this.value.length);
+});
+document.getElementById('btnCloseEdit').addEventListener('click', closeEditModal);
+document.getElementById('btnCancelEdit').addEventListener('click', closeEditModal);
+document.getElementById('editBackdrop').addEventListener('click', closeEditModal);
+document.getElementById('formEdit').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSaveEdit');
+    const payload = {
+        id: parseInt(document.getElementById('editId').value, 10),
+        tanggal_komunikasi: document.getElementById('editTanggal').value,
+        media_komunikasi: document.querySelector('input[name="edit_media"]:checked')?.value || '',
+        hasil_komunikasi: document.getElementById('editHasil').value,
+        rencana_pembayaran: document.getElementById('editRencana').value.trim(),
+        catatan: document.getElementById('editCatatan').value.trim(),
+        _token: csrf,
+    };
+    if (!payload.id || !payload.tanggal_komunikasi || !payload.media_komunikasi || !payload.hasil_komunikasi) {
+        Swal.fire({ icon: 'warning', title: 'Lengkapi data wajib', confirmButtonColor: '#2563eb' });
+        return;
+    }
+    btn.disabled = true;
+    try {
+        const res = await fetch(routes.update, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+            body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (!json.success) {
+            Swal.fire({ icon: 'error', title: 'Gagal', text: json.message || 'Tidak bisa menyimpan', confirmButtonColor: '#2563eb' });
+            return;
+        }
+        closeEditModal();
+        Swal.fire({ icon: 'success', title: 'Tersimpan', text: json.message, confirmButtonColor: '#2563eb', timer: 1400, showConfirmButton: false });
+        loadList();
+    } catch (err) {
+        Swal.fire({ icon: 'error', title: 'Error', text: 'Tidak dapat terhubung ke server', confirmButtonColor: '#2563eb' });
+    } finally {
+        btn.disabled = false;
+    }
+});
 
 document.getElementById('searchInput').addEventListener('input', function () {
     clearTimeout(searchTimer);

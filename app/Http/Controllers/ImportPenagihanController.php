@@ -86,6 +86,70 @@ class ImportPenagihanController extends Controller
         ]);
     }
 
+    public function update(Request $request)
+    {
+        if ($deny = $this->guardJson()) {
+            return $deny;
+        }
+
+        $validated = $request->validate([
+            'id' => ['required', 'integer', 'min:1'],
+            'tanggal_komunikasi' => ['required', 'date'],
+            'media_komunikasi' => ['required', 'string'],
+            'hasil_komunikasi' => ['required', 'string'],
+            'rencana_pembayaran' => ['nullable', 'string', 'max:255'],
+            'catatan' => ['nullable', 'string', 'max:250'],
+        ]);
+
+        $result = $this->callWs('updateRiwayatPenagihan', $validated, 20);
+        if ((int) ($result['status'] ?? 0) !== 200) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'] ?? 'Gagal mengubah data riwayat',
+            ], (int) ($result['status'] ?? 422));
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $result['message'] ?? 'Riwayat penagihan berhasil diubah',
+        ]);
+    }
+
+    public function destroy(Request $request)
+    {
+        if ($deny = $this->guardJson()) {
+            return $deny;
+        }
+
+        $validated = $request->validate([
+            'id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $result = $this->callWs('deleteRiwayatPenagihan', $validated, 20);
+        if ((int) ($result['status'] ?? 0) !== 200) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'] ?? 'Gagal menghapus data riwayat',
+            ], (int) ($result['status'] ?? 422));
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $result['message'] ?? 'Riwayat penagihan berhasil dihapus',
+        ]);
+    }
+
+    private function guardJson()
+    {
+        if (session('user.app') !== 'monitoring-kepsek') {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak'], 403);
+        }
+        if (!$this->isSuperAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak. Hanya superadmin.'], 403);
+        }
+        return null;
+    }
+
     public function downloadTemplate()
     {
         if ($redirect = $this->guardPage()) {

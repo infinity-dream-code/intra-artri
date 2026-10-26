@@ -83,6 +83,8 @@ Route::middleware(['check.auth'])->group(function () {
     Route::get('/kepsek/import-penagihan/data', [ImportPenagihanController::class, 'data'])->name('kepsek.import-penagihan.data');
     Route::get('/kepsek/import-penagihan/template', [ImportPenagihanController::class, 'downloadTemplate'])->name('kepsek.import-penagihan.template');
     Route::post('/kepsek/import-penagihan', [ImportPenagihanController::class, 'import'])->name('kepsek.import-penagihan.store');
+    Route::post('/kepsek/import-penagihan/update', [ImportPenagihanController::class, 'update'])->name('kepsek.import-penagihan.update');
+    Route::post('/kepsek/import-penagihan/delete', [ImportPenagihanController::class, 'destroy'])->name('kepsek.import-penagihan.delete');
 
     Route::get('/laporan-cashless', [LaporanCashlessController::class, 'show'])->name('laporan-cashless');
     Route::get('/laporan-cashless/filters', [LaporanCashlessController::class, 'filters'])->name('laporan-cashless.filters');
