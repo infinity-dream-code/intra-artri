@@ -2147,9 +2147,11 @@ function getUangSakuSiswa(array $req, ?string $code01): void
             c.DESC02 AS kelas,
             mk.unit AS sekolah,
             c.CODE01 AS code01,
-            c.NO_WA AS no_wa
+            c.NO_WA AS no_wa,
+            COALESCE(v.SALDO, 0) AS saldo
         FROM scctcust c
-        INNER JOIN mst_kelas mk ON mk.id = c.CODE03
+        LEFT JOIN mst_kelas mk ON mk.id = c.CODE03
+        LEFT JOIN v_saldo_saku v ON v.CUSTID = c.CUSTID
         $where
         ORDER BY mk.unit ASC, c.DESC02 ASC, c.NMCUST ASC
         LIMIT " . ($limit + 1) . " OFFSET " . $offset;
@@ -2164,23 +2166,9 @@ function getUangSakuSiswa(array $req, ?string $code01): void
         array_pop($rows);
     }
 
-    $saldoMap = [];
-    $custids = array_values(array_unique(array_map(fn($r) => (int) $r["custid"], $rows)));
-    if (!empty($custids)) {
-        $stmtSaldo = $pdo->prepare("
-            SELECT CUSTID, SALDO AS saldo
-            FROM v_saldo_saku
-            WHERE CUSTID IN (" . implode(",", $custids) . ")
-        ");
-        $stmtSaldo->execute();
-        foreach ($stmtSaldo->fetchAll() as $s) {
-            $saldoMap[(int) $s["CUSTID"]] = (float) $s["saldo"];
-        }
-    }
-
     foreach ($rows as &$row) {
         $row["custid"] = (int) $row["custid"];
-        $row["saldo"] = $saldoMap[$row["custid"]] ?? 0.0;
+        $row["saldo"] = (float) ($row["saldo"] ?? 0);
     }
     unset($row);
 
@@ -2241,7 +2229,7 @@ function getUangSakuSummary(array $req, ?string $code01): void
     $stmtCount = $pdo->prepare("
         SELECT COUNT(*) AS jumlah_santri
         FROM scctcust c
-        INNER JOIN mst_kelas mk ON mk.id = c.CODE03
+        LEFT JOIN mst_kelas mk ON mk.id = c.CODE03
         $where
     ");
     bindParams($stmtCount, $params);
@@ -2252,9 +2240,9 @@ function getUangSakuSummary(array $req, ?string $code01): void
     $whereSaldo = buildUangSakuSiswaWhere($req, $code01, $paramsSaldo);
     $stmtSaldo = $pdo->prepare("
         SELECT COALESCE(SUM(v.SALDO), 0) AS total_saldo
-        FROM v_saldo_saku v
-        INNER JOIN scctcust c ON c.CUSTID = v.CUSTID
-        INNER JOIN mst_kelas mk ON mk.id = c.CODE03
+        FROM scctcust c
+        LEFT JOIN mst_kelas mk ON mk.id = c.CODE03
+        LEFT JOIN v_saldo_saku v ON v.CUSTID = c.CUSTID
         $whereSaldo
     ");
     bindParams($stmtSaldo, $paramsSaldo);
@@ -2304,7 +2292,7 @@ function getUangSakuLedger(array $req, ?string $code01): void
         SELECT c.CUSTID AS custid, c.NOCUST AS nis, c.NMCUST AS nama, c.DESC02 AS kelas,
                mk.unit AS sekolah, c.CODE01 AS code01, c.NO_WA AS no_wa
         FROM scctcust c
-        INNER JOIN mst_kelas mk ON mk.id = c.CODE03
+        LEFT JOIN mst_kelas mk ON mk.id = c.CODE03
         WHERE c.CUSTID = :custid
     " . buildSekolahFilterSql([], $code01, $paramsSiswa, "us_led") . " LIMIT 1";
     $stmtSiswa = $pdo->prepare($sqlSiswa);
