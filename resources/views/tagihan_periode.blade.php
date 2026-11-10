@@ -1094,17 +1094,16 @@ function openKirimTagihanWa(siswa) {
     window.open(url, '_blank');
 }
 
-function buildLaporanWaMessage(link) {
+function buildLaporanWaMessage(link, nama) {
+    const namaSantri = String(nama || '-').trim().toUpperCase() || '-';
     return [
         '\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u064e\u0651\u0647\u0650 \u0627\u0644\u0631\u064e\u0651\u062d\u0652\u0645\u064e\u0646\u0650 \u0627\u0644\u0631\u064e\u0651\u062d\u0650\u064a\u0645\u0650',
         '',
         'Assalamu\u2019alaikum warahmatullahi wabarakatuh.',
         '',
-        'Bapak/Ibu Wali Santri yang kami hormati, berikut kami sampaikan laporan keuangan ananda untuk dapat diperiksa dan menjadi perhatian bersama.',
+        'Bapak/Ibu Wali Santri yang kami hormati, berikut kami sampaikan laporan keuangan ananda *(' + namaSantri + ')* untuk dapat diperiksa dan menjadi perhatian bersama.',
         link,
         'Terima kasih atas perhatian dan kerja sama Bapak/Ibu.',
-        '',
-        'Wassalamu\u2019alaikum warahmatullahi wabarakatuh.',
     ].join('\n');
 }
 
@@ -1131,7 +1130,7 @@ async function kirimLaporanWa(siswa, btn) {
             throw new Error(json.message || 'Gagal membuat link laporan.');
         }
 
-        const url = 'https://wa.me/' + wa + '?text=' + encodeURIComponent(buildLaporanWaMessage(json.url));
+        const url = 'https://wa.me/' + wa + '?text=' + encodeURIComponent(buildLaporanWaMessage(json.url, siswa.nama));
         if (win) win.location.href = url;
         else window.location.href = url;
     } catch (err) {
