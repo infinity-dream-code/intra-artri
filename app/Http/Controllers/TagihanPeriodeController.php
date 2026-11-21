@@ -174,35 +174,43 @@ class TagihanPeriodeController extends Controller
             return response()->json(['success' => false, 'message' => 'Akses ditolak'], 403);
         }
 
+        $wantBta = $request->query('part') !== 'fast';
+        $wantFast = $request->query('part') !== 'bta';
+
         $scope = md5((string) session('user.code01', '') . '|' . ((int) session('user.humas', 0)));
         $fastKey = 'periode_filter_fast_v1_' . $scope;
         $btaKey = 'periode_filter_bta_v1';
 
-        $fast = Cache::get($fastKey);
-        if (!is_array($fast)) {
-            // Sekolah + tagihan dari tabel kecil — tanpa BTA dulu
-            $r = $this->callWs('getFilterOptions', ['with_bta' => '0'], 20);
-            if (($r['status'] ?? 0) === 200) {
-                $fast = [
-                    'sekolah' => $r['data']['sekolah'] ?? [],
-                    'tagihan' => $r['data']['tagihan'] ?? [],
-                ];
-                Cache::put($fastKey, $fast, now()->addHours(6));
-            }
-        }
-
-        $bta = Cache::get($btaKey);
-        if (!is_array($bta)) {
-            $r = $this->callWs('getFilterOptions', ['with_bta' => '1'], 60);
-            if (($r['status'] ?? 0) === 200) {
-                $bta = $r['data']['bta'] ?? [];
-                if (!empty($bta)) {
-                    Cache::put($btaKey, $bta, now()->addHours(12));
+        $fast = null;
+        if ($wantFast) {
+            $fast = Cache::get($fastKey);
+            if (!is_array($fast)) {
+                $r = $this->callWs('getFilterOptions', ['with_bta' => '0'], 20);
+                if (($r['status'] ?? 0) === 200) {
+                    $fast = [
+                        'sekolah' => $r['data']['sekolah'] ?? [],
+                        'tagihan' => $r['data']['tagihan'] ?? [],
+                    ];
+                    Cache::put($fastKey, $fast, now()->addHours(6));
                 }
             }
         }
 
-        if ($fast === null && $bta === null) {
+        $bta = null;
+        if ($wantBta) {
+            $bta = Cache::get($btaKey);
+            if (!is_array($bta)) {
+                $r = $this->callWs('getFilterOptions', ['with_bta' => '1'], 60);
+                if (($r['status'] ?? 0) === 200) {
+                    $bta = $r['data']['bta'] ?? [];
+                    if (!empty($bta)) {
+                        Cache::put($btaKey, $bta, now()->addHours(12));
+                    }
+                }
+            }
+        }
+
+        if ($wantFast && !is_array($fast) && $wantBta && !is_array($bta)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal mengambil data filter. Coba muat ulang halaman.',
@@ -211,13 +219,13 @@ class TagihanPeriodeController extends Controller
 
         return response()->json([
             'success' => true,
-            'sekolah' => $fast['sekolah'] ?? [],
+            'sekolah' => is_array($fast) ? ($fast['sekolah'] ?? []) : [],
             'bta'     => is_array($bta) ? $bta : [],
             'kelas'   => [],
             'jenjang' => [],
             'tagihan' => $this->isHumas()
                 ? [self::TAGIHAN_DAFTAR_ULANG]
-                : ($fast['tagihan'] ?? []),
+                : (is_array($fast) ? ($fast['tagihan'] ?? []) : []),
         ]);
     }
     public function siswaList(Request $request)

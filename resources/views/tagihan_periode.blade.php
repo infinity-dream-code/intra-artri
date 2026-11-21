@@ -2157,131 +2157,166 @@ async function updateKelasSelect() {
     }
 }
 
-async function loadFilterOptions() {
-    try {
-        const res = await fetch(routes.filters, {
-            headers: apiHeaders(),
-            cache: 'no-cache'
-        });
-        const json = await parseJsonResponse(res);
-
-        if (!json.success) {
-            console.error('loadFilterOptions gagal', json);
-            return;
+function applySekolahFilterOptions(json) {
+    const sekolahList = (json.sekolah || []).map(item => {
+        if (item && typeof item === 'object') {
+            return {
+                value: String(item.value ?? '').trim(),
+                label: String(item.label ?? item.value ?? '').trim(),
+            };
         }
+        const v = String(item ?? '').trim();
+        return { value: v, label: v };
+    }).filter(item => item.value !== '');
 
-        const sekolahList = (json.sekolah || []).map(item => {
-            if (item && typeof item === 'object') {
-                return {
-                    value: String(item.value ?? '').trim(),
-                    label: String(item.label ?? item.value ?? '').trim(),
-                };
-            }
-            const v = String(item ?? '').trim();
-            return { value: v, label: v };
-        }).filter(item => item.value !== '');
+    let options = sekolahList;
+    if (restrictedSekolahCodes.length && !options.length) {
+        options = restrictedSekolahCodes.map(code => ({ value: code, label: code }));
+    }
 
-        let options = sekolahList;
-        if (restrictedSekolahCodes.length && !options.length) {
-            options = restrictedSekolahCodes.map(code => ({ value: code, label: code }));
-        }
-
-        if (canMultiSelectSekolah) {
-            const list = document.getElementById('filterSekolahList');
-            if (!options.length) {
-                list.innerHTML = '<div class="tagihan-empty-note">Tidak ada data unit</div>';
-            } else {
-                list.innerHTML = options.map(item => `
-                    <label class="tagihan-option">
-                        <input type="checkbox" value="${escapeHtml(item.value)}" ${selectedSekolah.includes(item.value) ? 'checked' : ''}>
-                        <span>${escapeHtml(item.label || item.value)}</span>
-                    </label>
-                `).join('');
-            }
-            selectedSekolah = selectedSekolah.filter(v => options.some(o => o.value === v));
-            syncSekolahCheckboxes();
-            updateSekolahLabel();
+    if (canMultiSelectSekolah) {
+        const list = document.getElementById('filterSekolahList');
+        if (!options.length) {
+            list.innerHTML = '<div class="tagihan-empty-note">Tidak ada data unit</div>';
         } else {
-            const sekolahSel = document.getElementById('filterSekolah');
-            const currentSekolah = sekolahSel.value;
-            sekolahSel.innerHTML = '';
-            if (restrictedSekolahCodes.length) {
-                if (options.length > 1) {
-                    const allOpt = document.createElement('option');
-                    allOpt.value = '';
-                    allOpt.textContent = 'Pilih sekolah/unit';
-                    sekolahSel.appendChild(allOpt);
-                    sekolahSel.disabled = false;
-                } else {
-                    sekolahSel.disabled = true;
-                }
-            } else {
-                sekolahSel.disabled = false;
-                const allOpt = document.createElement('option');
-                allOpt.value = '';
-                allOpt.textContent = 'Semua sekolah/unit';
-                sekolahSel.appendChild(allOpt);
-            }
-            options.forEach(item => {
-                const opt = document.createElement('option');
-                opt.value = item.value;
-                opt.textContent = item.label || item.value;
-                sekolahSel.appendChild(opt);
-            });
-            if (options.length === 1 && restrictedSekolahCodes.length) {
-                sekolahSel.value = options[0].value;
-            } else if (currentSekolah && options.some(item => item.value === currentSekolah)) {
-                sekolahSel.value = currentSekolah;
-            } else {
-                sekolahSel.value = '';
-            }
-        }
-
-        const btaSel = document.getElementById('filterBta');
-        const currentBta = btaSel.value;
-        btaSel.innerHTML = '<option value="">Semua tahun ajaran</option>';
-        (json.bta || []).forEach(v => {
-            const opt = document.createElement('option');
-            opt.value = v;
-            opt.textContent = v;
-            btaSel.appendChild(opt);
-        });
-        if (currentBta && json.bta.includes(currentBta)) {
-            btaSel.value = currentBta;
-        } else {
-            btaSel.value = pickCurrentAcademicBta(json.bta);
-        }
-
-        resetKelasFilter('Pilih sekolah dulu');
-
-        if (getSelectedSekolahValues().length) {
-            await updateKelasSelect();
-        }
-
-        const tagihanList = document.getElementById('filterTagihanList');
-        const tagihanOptions = json.tagihan || [];
-        if (isDaftarUlangOnly) {
-            selectedTagihan = [lockedTagihan];
-            tagihanList.innerHTML = `
+            list.innerHTML = options.map(item => `
                 <label class="tagihan-option">
-                    <input type="radio" name="tagihan_radio" value="${escapeHtml(lockedTagihan)}" checked disabled>
-                    <span>${escapeHtml(lockedTagihan)}</span>
-                </label>
-            `;
-        } else if (!tagihanOptions.length) {
-            tagihanList.innerHTML = '<div class="tagihan-empty-note">Tidak ada data tagihan</div>';
-        } else {
-            tagihanList.innerHTML = tagihanOptions.map(t => `
-                <label class="tagihan-option">
-                    <input type="radio" name="tagihan_radio" value="${escapeHtml(t)}" ${selectedTagihan.includes(t) ? 'checked' : ''}>
-                    <span>${escapeHtml(t)}</span>
+                    <input type="checkbox" value="${escapeHtml(item.value)}" ${selectedSekolah.includes(item.value) ? 'checked' : ''}>
+                    <span>${escapeHtml(item.label || item.value)}</span>
                 </label>
             `).join('');
         }
-        updateTagihanLabel();
-        updateSummaryPeriodLabel();
+        selectedSekolah = selectedSekolah.filter(v => options.some(o => o.value === v));
+        syncSekolahCheckboxes();
+        updateSekolahLabel();
+    } else {
+        const sekolahSel = document.getElementById('filterSekolah');
+        const currentSekolah = sekolahSel.value;
+        sekolahSel.innerHTML = '';
+        if (restrictedSekolahCodes.length) {
+            if (options.length > 1) {
+                const allOpt = document.createElement('option');
+                allOpt.value = '';
+                allOpt.textContent = 'Pilih sekolah/unit';
+                sekolahSel.appendChild(allOpt);
+                sekolahSel.disabled = false;
+            } else {
+                sekolahSel.disabled = true;
+            }
+        } else {
+            sekolahSel.disabled = false;
+            const allOpt = document.createElement('option');
+            allOpt.value = '';
+            allOpt.textContent = 'Semua sekolah/unit';
+            sekolahSel.appendChild(allOpt);
+        }
+        options.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.value;
+            opt.textContent = item.label || item.value;
+            sekolahSel.appendChild(opt);
+        });
+        if (options.length === 1 && restrictedSekolahCodes.length) {
+            sekolahSel.value = options[0].value;
+        } else if (currentSekolah && options.some(item => item.value === currentSekolah)) {
+            sekolahSel.value = currentSekolah;
+        } else {
+            sekolahSel.value = '';
+        }
+    }
+}
+
+function applyTagihanFilterOptions(json) {
+    const tagihanList = document.getElementById('filterTagihanList');
+    const tagihanOptions = json.tagihan || [];
+    if (isDaftarUlangOnly) {
+        selectedTagihan = [lockedTagihan];
+        tagihanList.innerHTML = `
+            <label class="tagihan-option">
+                <input type="radio" name="tagihan_radio" value="${escapeHtml(lockedTagihan)}" checked disabled>
+                <span>${escapeHtml(lockedTagihan)}</span>
+            </label>
+        `;
+    } else if (!tagihanOptions.length) {
+        tagihanList.innerHTML = '<div class="tagihan-empty-note">Tidak ada data tagihan</div>';
+    } else {
+        tagihanList.innerHTML = tagihanOptions.map(t => `
+            <label class="tagihan-option">
+                <input type="radio" name="tagihan_radio" value="${escapeHtml(t)}" ${selectedTagihan.includes(t) ? 'checked' : ''}>
+                <span>${escapeHtml(t)}</span>
+            </label>
+        `).join('');
+    }
+    updateTagihanLabel();
+}
+
+function applyBtaFilterOptions(list) {
+    const btaSel = document.getElementById('filterBta');
+    const currentBta = btaSel.value;
+    const items = list || [];
+    btaSel.innerHTML = '<option value="">Semua tahun ajaran</option>';
+    items.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v;
+        btaSel.appendChild(opt);
+    });
+    if (currentBta && items.includes(currentBta)) {
+        btaSel.value = currentBta;
+    } else {
+        btaSel.value = pickCurrentAcademicBta(items);
+    }
+    updateSummaryPeriodLabel();
+}
+
+async function loadFilterOptions() {
+    const btaSel = document.getElementById('filterBta');
+    btaSel.innerHTML = '<option value="">Memuat tahun ajaran...</option>';
+
+    // 1) Sekolah + tagihan dulu (cepat)
+    try {
+        const resFast = await fetch(routes.filters + '?part=fast', {
+            headers: apiHeaders(),
+            cache: 'no-cache'
+        });
+        const jsonFast = await parseJsonResponse(resFast);
+        if (!jsonFast.success) {
+            throw new Error(jsonFast.message || 'Gagal memuat filter');
+        }
+        applySekolahFilterOptions(jsonFast);
+        applyTagihanFilterOptions(jsonFast);
+        resetKelasFilter('Pilih sekolah dulu');
+        if (getSelectedSekolahValues().length) {
+            await updateKelasSelect();
+        }
     } catch (e) {
-        console.error('loadFilterOptions error', e);
+        console.error('loadFilterOptions fast error', e);
+        if (canMultiSelectSekolah) {
+            document.getElementById('filterSekolahList').innerHTML =
+                `<div class="tagihan-empty-note">${escapeHtml(e.message || 'Gagal memuat sekolah')}</div>`;
+        } else {
+            document.getElementById('filterSekolah').innerHTML =
+                `<option value="">${escapeHtml(e.message || 'Gagal memuat sekolah')}</option>`;
+        }
+    }
+
+    // 2) Tahun ajaran menyusul (bisa lebih lama, tidak menahan sekolah)
+    try {
+        const resBta = await fetch(routes.filters + '?part=bta', {
+            headers: apiHeaders(),
+            cache: 'no-cache'
+        });
+        const jsonBta = await parseJsonResponse(resBta);
+        if (!jsonBta.success) {
+            throw new Error(jsonBta.message || 'Gagal memuat tahun ajaran');
+        }
+        applyBtaFilterOptions(jsonBta.bta || []);
+        if (document.getElementById('filterBta').value) {
+            loadSiswaList(true);
+        }
+    } catch (e) {
+        console.error('loadFilterOptions bta error', e);
+        btaSel.innerHTML = `<option value="">${escapeHtml(e.message || 'Gagal memuat tahun ajaran')}</option>`;
     }
 }
 

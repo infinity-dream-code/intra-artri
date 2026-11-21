@@ -402,18 +402,12 @@ function toggleDropdown(btnId, ddId, forceState) {
 }
 
 async function loadFilters() {
-    const res = await fetch(routes.filters, { headers: { 'Accept': 'application/json' }, cache: 'no-cache' });
-    const json = await res.json();
-    if (!json.success) throw new Error(json.message || 'Gagal memuat filter');
-
     const btaSel = document.getElementById('filterBta');
-    btaSel.innerHTML = '<option value="">Pilih tahun ajaran</option>';
-    (json.bta || []).forEach(v => {
-        const opt = document.createElement('option');
-        opt.value = v; opt.textContent = v;
-        btaSel.appendChild(opt);
-    });
-    btaSel.value = pickCurrentAcademicBta(json.bta);
+    btaSel.innerHTML = '<option value="">Memuat tahun ajaran...</option>';
+
+    const resFast = await fetch(routes.filters + '?part=fast', { headers: { 'Accept': 'application/json' }, cache: 'no-cache' });
+    const json = await resFast.json();
+    if (!json.success) throw new Error(json.message || 'Gagal memuat filter');
 
     const sekolahList = (json.sekolah || []).map(item => {
         if (item && typeof item === 'object') return { value: String(item.value ?? '').trim(), label: String(item.label ?? item.value ?? '').trim() };
@@ -466,6 +460,21 @@ async function loadFilters() {
             : '<div class="tagihan-empty-note">Tidak ada data tagihan</div>';
     }
     updateTagihanLabel();
+
+    try {
+        const resBta = await fetch(routes.filters + '?part=bta', { headers: { 'Accept': 'application/json' }, cache: 'no-cache' });
+        const jsonBta = await resBta.json();
+        if (!jsonBta.success) throw new Error(jsonBta.message || 'Gagal memuat tahun ajaran');
+        btaSel.innerHTML = '<option value="">Pilih tahun ajaran</option>';
+        (jsonBta.bta || []).forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v; opt.textContent = v;
+            btaSel.appendChild(opt);
+        });
+        btaSel.value = pickCurrentAcademicBta(jsonBta.bta);
+    } catch (e) {
+        btaSel.innerHTML = `<option value="">${escapeHtml(e.message || 'Gagal memuat tahun ajaran')}</option>`;
+    }
 }
 
 function renderDashboard(summary, rows) {
