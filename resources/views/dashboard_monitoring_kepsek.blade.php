@@ -563,13 +563,26 @@ async function loadDashboard() {
     document.getElementById('rincianBody').innerHTML = '<tr><td colspan="6" class="empty">Memuat data...</td></tr>';
 
     const q = buildQuery({ bta, tagihan: selectedTagihan, sekolah: getSelectedSekolahValues() });
-    const res = await fetch(routes.data + (q ? '?' + q : ''), { headers: { 'Accept': 'application/json' } });
-    const json = await res.json();
-    if (!json.success) {
-        document.getElementById('rincianBody').innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(json.message || 'Gagal memuat data')}</td></tr>`;
-        return;
+    try {
+        const res = await fetch(routes.data + (q ? '?' + q : ''), { headers: { 'Accept': 'application/json' } });
+        let json = {};
+        try { json = await res.json(); } catch (e) {
+            throw new Error(res.status === 500
+                ? 'Server kehabisan waktu memuat data. Coba lagi atau filter sekolah lebih spesifik.'
+                : 'Respons server tidak valid (HTTP ' + res.status + ').');
+        }
+        if (!json.success) {
+            const msg = String(json.message || 'Gagal memuat data');
+            const friendly = /maximum execution time|timeout|timed out/i.test(msg)
+                ? 'Perhitungan dashboard terlalu lama. Coba pilih sekolah/unit spesifik, lalu muat ulang.'
+                : msg;
+            document.getElementById('rincianBody').innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(friendly)}</td></tr>`;
+            return;
+        }
+        renderDashboard(json.summary || {}, json.by_sekolah || []);
+    } catch (e) {
+        document.getElementById('rincianBody').innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(e.message || 'Gagal memuat data')}</td></tr>`;
     }
-    renderDashboard(json.summary || {}, json.by_sekolah || []);
 }
 
 document.getElementById('filterBta').addEventListener('change', loadDashboard);

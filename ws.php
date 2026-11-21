@@ -1180,6 +1180,9 @@ function getSummaryTagihanPeriode(array $req, ?string $code01): void
 
 function getDashboardKeuangan(array $req, ?string $code01): void
 {
+    // Query berat: jangan kena default max_execution_time 30s di WS
+    @set_time_limit(120);
+
     $bta = trim((string) ($req["bta"] ?? ""));
     if ($bta === "") {
         http_response_code(200);
@@ -1261,11 +1264,16 @@ function getDashboardKeuangan(array $req, ?string $code01): void
         ) cut ON cut.CUSTID = c.CUSTID
     ";
 
+    // Batasi perhitungan saldo hanya ke siswa/unit yang sedang difilter
+    $saldoSekolahSql = buildSekolahFilterSql($req, $code01, $params, "dsh_sal");
     $saldoJoin = "
         LEFT JOIN (
             SELECT t.CUSTID, COALESCE(SUM(t.KREDIT),0) - COALESCE(SUM(t.DEBET),0) AS saldo
             FROM sccttran t
+            INNER JOIN scctcust cs ON cs.CUSTID = t.CUSTID AND cs.STCUST = '1'
+            INNER JOIN mst_kelas mk ON mk.id = cs.CODE03
             WHERE t.REFFBANK IN ('27','28','22','31')
+            $saldoSekolahSql
             GROUP BY t.CUSTID
         ) sal ON sal.CUSTID = c.CUSTID
     ";
@@ -1275,7 +1283,7 @@ function getDashboardKeuangan(array $req, ?string $code01): void
             WHEN b.FSTSBolehBayar = 1
                 AND (
                     (b.BTA = :bta AND b.FUrutan <= cut.max_furutan)
-                    OR (b.BTA < :bta AND b.PAIDST = '0' AND b.FSTSBolehBayar = 1)
+                    OR (b.BTA < :bta AND b.PAIDST = '0')
                 )
             THEN b.BILLAM ELSE 0
         END
@@ -1285,7 +1293,7 @@ function getDashboardKeuangan(array $req, ?string $code01): void
             WHEN b.FSTSBolehBayar = 1 AND b.PAIDST = '1'
                 AND (
                     (b.BTA = :bta AND b.FUrutan <= cut.max_furutan)
-                    OR (b.BTA < :bta AND b.PAIDST = '0' AND b.FSTSBolehBayar = 1)
+                    OR (b.BTA < :bta AND b.PAIDST = '0')
                 )
             THEN b.BILLAM ELSE 0
         END
@@ -1300,7 +1308,9 @@ function getDashboardKeuangan(array $req, ?string $code01): void
             COALESCE(sal.saldo, 0) AS saldo
         FROM scctcust c
         LEFT JOIN mst_kelas mk ON mk.id = c.CODE03
-        LEFT JOIN scctbill b ON b.CUSTID = c.CUSTID AND b.BTA <= :bta
+        LEFT JOIN scctbill b ON b.CUSTID = c.CUSTID
+            AND b.BTA <= :bta
+            AND b.FSTSBolehBayar = 1
         $cutoffJoin
         $saldoJoin
         $sqlWhere
