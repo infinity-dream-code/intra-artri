@@ -1890,61 +1890,19 @@ function getFilterOptions(array $req, ?string $code01): void
         }
     }
 
-    $sqlBta = "
-        SELECT DISTINCT b.BTA AS value
-        FROM scctbill b
-        WHERE b.FSTSBolehBayar = 1
-          AND b.BTA IS NOT NULL AND b.BTA != ''
-        ORDER BY b.BTA DESC
-        LIMIT 50
-    ";
-    $stmtBta = $pdo->prepare($sqlBta);
-    $stmtBta->execute();
-    $bta = array_column($stmtBta->fetchAll(), "value");
-
-    $paramsKelas = [];
-    $sqlKelas = "
-        SELECT DISTINCT c.DESC02 AS value
-        FROM scctcust c
-        INNER JOIN mst_kelas mk ON mk.id = c.CODE03
-        WHERE c.STCUST = '1'
-          AND c.DESC02 IS NOT NULL AND c.DESC02 != ''
-    ";
-    if ($restricted) {
-        $ph = [];
-        foreach ($allowed as $i => $val) {
-            $key = ":k_$i";
-            $ph[] = $key;
-            $paramsKelas[$key] = $val;
-        }
-        $sqlKelas .= " AND mk.unit IN (" . implode(",", $ph) . ") ";
+    // BTA diambil ringan: cukup daftar tahun ajaran unik (tanpa scan kelas/jenjang)
+    $bta = [];
+    if (($req["with_bta"] ?? "1") !== "0") {
+        $stmtBta = $pdo->query("
+            SELECT BTA AS value
+            FROM scctbill
+            WHERE BTA IS NOT NULL AND BTA != ''
+            GROUP BY BTA
+            ORDER BY BTA DESC
+            LIMIT 50
+        ");
+        $bta = array_column($stmtBta->fetchAll(), "value");
     }
-    $sqlKelas .= " ORDER BY c.DESC02 ASC LIMIT 100 ";
-    $stmtKelas = $pdo->prepare($sqlKelas);
-    bindParams($stmtKelas, $paramsKelas);
-    $stmtKelas->execute();
-    $kelas = array_column($stmtKelas->fetchAll(), "value");
-
-    $paramsJenjang = [];
-    $sqlJenjang = "
-        SELECT DISTINCT mk.kelas AS value
-        FROM mst_kelas mk
-        WHERE mk.kelas IS NOT NULL AND mk.kelas != ''
-    ";
-    if ($restricted) {
-        $ph = [];
-        foreach ($allowed as $i => $val) {
-            $key = ":j_$i";
-            $ph[] = $key;
-            $paramsJenjang[$key] = $val;
-        }
-        $sqlJenjang .= " AND mk.unit IN (" . implode(",", $ph) . ") ";
-    }
-    $sqlJenjang .= " ORDER BY mk.id ASC ";
-    $stmtJenjang = $pdo->prepare($sqlJenjang);
-    bindParams($stmtJenjang, $paramsJenjang);
-    $stmtJenjang->execute();
-    $jenjang = array_column($stmtJenjang->fetchAll(), "value");
 
     if ($daftarUlangOnly) {
         $tagihanList = ["BIAYA Daftar Ulang Ajaran Baru"];
@@ -1966,8 +1924,8 @@ function getFilterOptions(array $req, ?string $code01): void
         "data" => [
             "sekolah" => $sekolah,
             "bta" => $bta,
-            "kelas" => $kelas,
-            "jenjang" => $jenjang,
+            "kelas" => [],
+            "jenjang" => [],
             "tagihan" => $tagihanList,
         ]
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

@@ -174,29 +174,50 @@ class TagihanPeriodeController extends Controller
             return response()->json(['success' => false, 'message' => 'Akses ditolak'], 403);
         }
 
-        $cacheKey = 'periode_filter_options_v6_' . md5((string) session('user.token') . '|' . (string) session('user.code01', ''));
+        $scope = md5((string) session('user.code01', '') . '|' . ((int) session('user.humas', 0)));
+        $fastKey = 'periode_filter_fast_v1_' . $scope;
+        $btaKey = 'periode_filter_bta_v1';
 
-        $result = Cache::remember($cacheKey, 900, function () {
-            $r = $this->callWs('getFilterOptions', [], 15);
-            return ($r['status'] ?? 0) === 200 ? $r : null;
-        });
+        $fast = Cache::get($fastKey);
+        if (!is_array($fast)) {
+            // Sekolah + tagihan dari tabel kecil — tanpa BTA dulu
+            $r = $this->callWs('getFilterOptions', ['with_bta' => '0'], 20);
+            if (($r['status'] ?? 0) === 200) {
+                $fast = [
+                    'sekolah' => $r['data']['sekolah'] ?? [],
+                    'tagihan' => $r['data']['tagihan'] ?? [],
+                ];
+                Cache::put($fastKey, $fast, now()->addHours(6));
+            }
+        }
 
-        if ($result === null) {
+        $bta = Cache::get($btaKey);
+        if (!is_array($bta)) {
+            $r = $this->callWs('getFilterOptions', ['with_bta' => '1'], 60);
+            if (($r['status'] ?? 0) === 200) {
+                $bta = $r['data']['bta'] ?? [];
+                if (!empty($bta)) {
+                    Cache::put($btaKey, $bta, now()->addHours(12));
+                }
+            }
+        }
+
+        if ($fast === null && $bta === null) {
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal mengambil data filter',
+                'message' => 'Gagal mengambil data filter. Coba muat ulang halaman.',
             ], 422);
         }
 
         return response()->json([
             'success' => true,
-            'sekolah' => $result['data']['sekolah'] ?? [],
-            'bta'     => $result['data']['bta'] ?? [],
-            'kelas'   => $result['data']['kelas'] ?? [],
-            'jenjang' => $result['data']['jenjang'] ?? [],
+            'sekolah' => $fast['sekolah'] ?? [],
+            'bta'     => is_array($bta) ? $bta : [],
+            'kelas'   => [],
+            'jenjang' => [],
             'tagihan' => $this->isHumas()
                 ? [self::TAGIHAN_DAFTAR_ULANG]
-                : ($result['data']['tagihan'] ?? []),
+                : ($fast['tagihan'] ?? []),
         ]);
     }
     public function siswaList(Request $request)
