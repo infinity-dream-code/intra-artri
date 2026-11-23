@@ -52,6 +52,9 @@ class MonitoringKepsekController extends Controller
             return response()->json(['success' => false, 'message' => 'Akses ditolak'], 403);
         }
 
+        @set_time_limit(60);
+        @ini_set('memory_limit', '512M');
+
         $bta = trim((string) $request->query('bta', ''));
         if ($bta === '') {
             return response()->json([
@@ -164,6 +167,9 @@ class MonitoringKepsekController extends Controller
         if (session('user.app') !== 'monitoring-kepsek') {
             return response()->json(['success' => false, 'message' => 'Akses ditolak'], 403);
         }
+
+        @set_time_limit(60);
+        @ini_set('memory_limit', '512M');
 
         if ($this->isDaftarUlangOnly() && $request->has('page') && $request->query('_periode') === '1') {
             return response()->json(['success' => false, 'message' => 'Akses ditolak'], 403);
@@ -301,6 +307,9 @@ class MonitoringKepsekController extends Controller
         if (session('user.app') !== 'monitoring-kepsek') {
             return response()->json(['success' => false, 'message' => 'Akses ditolak'], 403);
         }
+
+        @set_time_limit(60);
+        @ini_set('memory_limit', '512M');
 
         $filterParams = $this->buildFilterParams($request);
         $cacheKey = 'kepsek_summary_' . md5(json_encode($filterParams) . '|' . (string) session('user.token'));

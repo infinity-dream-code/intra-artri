@@ -234,6 +234,9 @@ class TagihanPeriodeController extends Controller
             return response()->json(['success' => false, 'message' => 'Akses ditolak'], 403);
         }
 
+        @set_time_limit(60);
+        @ini_set('memory_limit', '512M');
+
         $limit = $this->resolveLimit($request);
         $page = max((int) $request->query('page', 1), 1);
         $offset = ($page - 1) * $limit;
@@ -391,6 +394,9 @@ class TagihanPeriodeController extends Controller
         if (session('user.app') !== 'monitoring-kepsek') {
             return response()->json(['success' => false, 'message' => 'Akses ditolak'], 403);
         }
+
+        @set_time_limit(60);
+        @ini_set('memory_limit', '512M');
 
         $filterParams = $this->buildFilterParams($request);
 
