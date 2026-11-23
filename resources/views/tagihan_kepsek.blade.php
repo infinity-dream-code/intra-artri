@@ -264,6 +264,7 @@
                 <h3><i class="fas fa-file-invoice"></i> Daftar Tagihan per Siswa</h3>
                 <div class="btn-row" style="margin:0;">
                     <a href="#" class="btn btn-excel" id="btnExportExcel"><i class="fas fa-file-excel"></i> Export Excel</a>
+                    <a href="#" class="btn btn-excel" id="btnExportCsv" style="background:#059669; border-color:#059669;" title="Download instan tanpa batas baris"><i class="fas fa-file-csv"></i> Export CSV</a>
                     <a href="#" class="btn btn-pdf" id="btnExportPdf"><i class="fas fa-file-pdf"></i> Export PDF</a>
                 </div>
             </div>
@@ -380,6 +381,7 @@
         summary: @json(route('kepsek.tagihan.summary')),
         filters: @json(route('kepsek.tagihan.filters')),
         exportExcel: @json(route('kepsek.tagihan.export-excel')),
+        exportCsv: @json(route('kepsek.tagihan.export-csv')),
         exportPdf: @json(route('kepsek.tagihan.export-pdf')),
     };
     const csrf = @json(csrf_token());
@@ -453,6 +455,10 @@
     function updateExportLinks() {
         const q = buildQuery(getFilterParams());
         document.getElementById('btnExportExcel').href = routes.exportExcel + (q ? '?' + q : '');
+        const btnCsv = document.getElementById('btnExportCsv');
+        if (btnCsv) {
+            btnCsv.href = routes.exportCsv + (q ? '?' + q : '');
+        }
         document.getElementById('btnExportPdf').href = routes.exportPdf + (q ? '?' + q : '');
     }
 

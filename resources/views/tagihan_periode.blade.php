@@ -719,6 +719,7 @@
                 </div>
                 <div class="btn-row" style="margin:0;">
                     <a href="#" class="btn btn-excel" id="btnExportExcel"><i class="fas fa-file-excel"></i> Export Excel</a>
+                    <a href="#" class="btn btn-excel" id="btnExportCsv" style="background:#059669; border-color:#059669;" title="Download instan tanpa batas baris"><i class="fas fa-file-csv"></i> Export CSV</a>
                     <a href="#" class="btn btn-pdf" id="btnExportPdf"><i class="fas fa-file-pdf"></i> Export PDF</a>
                 </div>
             </div>
@@ -900,6 +901,7 @@ const routes = {
     summary: @json(route('kepsek.tagihan-periode.summary')),
     filters: @json(route('kepsek.tagihan-periode.filters')),
     exportExcel: @json(route('kepsek.tagihan-periode.export-excel')),
+    exportCsv: @json(route('kepsek.tagihan-periode.export-csv')),
     exportPdf: @json(route('kepsek.tagihan-periode.export-pdf')),
     siswaLaporan: @json(route('kepsek.tagihan-periode.siswa-laporan')),
     siswaLaporanShare: @json(route('kepsek.tagihan-periode.siswa-laporan.share')),
@@ -1445,6 +1447,10 @@ function buildQuery(params) {
 function updateExportLinks() {
     const q = buildQuery(getFilterParams());
     document.getElementById('btnExportExcel').href = routes.exportExcel + (q ? '?' + q : '');
+    const btnCsv = document.getElementById('btnExportCsv');
+    if (btnCsv) {
+        btnCsv.href = routes.exportCsv + (q ? '?' + q : '');
+    }
     document.getElementById('btnExportPdf').href = routes.exportPdf + (q ? '?' + q : '');
 }
 

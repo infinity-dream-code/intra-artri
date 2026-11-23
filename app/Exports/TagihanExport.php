@@ -8,6 +8,7 @@ use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Conditional;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 class TagihanExport implements FromArray, WithEvents
@@ -124,6 +125,7 @@ class TagihanExport implements FromArray, WithEvents
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
+                @set_time_limit(180);
                 $sheet = $event->sheet->getDelegate();
                 $lastRow = $sheet->getHighestRow();
                 $lastCol = self::LAST_COL;
@@ -175,18 +177,18 @@ class TagihanExport implements FromArray, WithEvents
                     $sheet->getStyle('B' . $dataStartRow . ':B' . $dataEndRow)
                         ->getNumberFormat()->setFormatCode('@');
 
-                    for ($r = $dataStartRow; $r <= $dataEndRow; $r++) {
-                        $status = strtoupper(trim((string) $sheet->getCell('J' . $r)->getValue()));
-                        if ($status === 'BELUM LUNAS') {
-                            $sheet->getStyle('J' . $r . ':K' . $r)->applyFromArray([
-                                'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
-                                'fill' => [
-                                    'fillType' => Fill::FILL_SOLID,
-                                    'startColor' => ['argb' => 'FFEF4444'],
-                                ],
-                            ]);
-                        }
-                    }
+                    // Fast Conditional Formatting for "Belum Lunas" without slow cell-by-cell loop
+                    $conditional = new Conditional();
+                    $conditional->setConditionType(Conditional::CONDITION_EXPRESSION);
+                    $conditional->setConditions(['$J' . $dataStartRow . '="Belum Lunas"']);
+                    $conditional->getStyle()->getFont()->getColor()->setARGB('FFFFFFFF');
+                    $conditional->getStyle()->getFont()->setBold(true);
+                    $conditional->getStyle()->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFEF4444');
+                    $conditional->getStyle()->getFill()->getEndColor()->setARGB('FFEF4444');
+
+                    $conditionalStyles = $sheet->getStyle('J' . $dataStartRow . ':K' . $dataEndRow)->getConditionalStyles();
+                    $conditionalStyles[] = $conditional;
+                    $sheet->getStyle('J' . $dataStartRow . ':K' . $dataEndRow)->setConditionalStyles($conditionalStyles);
                 }
 
                 $sheet->getStyle('A' . $totalRow . ':' . $lastCol . $totalRow)->applyFromArray([

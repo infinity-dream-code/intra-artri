@@ -331,11 +331,14 @@ class MonitoringKepsekController extends Controller
             return redirect()->route('dashboard');
         }
 
+        @set_time_limit(300);
+        @ini_set('memory_limit', '512M');
+
         $rows = $this->fetchSiswaForExport($request);
 
         if (empty($rows)) {
             return redirect()
-                ->route('kepsek.tagihan')
+                ->route('kepsek.tagihan', $request->query())
                 ->with('error', 'Tidak ada data untuk diexport.');
         }
 
@@ -349,16 +352,112 @@ class MonitoringKepsekController extends Controller
         );
     }
 
+    public function exportTagihanCsv(Request $request)
+    {
+        if (session('user.app') !== 'monitoring-kepsek') {
+            return redirect()->route('dashboard');
+        }
+
+        @set_time_limit(300);
+        @ini_set('memory_limit', '512M');
+
+        $rows = $this->fetchSiswaForExport($request);
+        if (empty($rows)) {
+            return redirect()
+                ->route('kepsek.tagihan', $request->query())
+                ->with('error', 'Tidak ada data untuk diexport.');
+        }
+
+        $filename = 'tagihan_kepsek_' . now('Asia/Jakarta')->format('Ymd_His') . '.csv';
+
+        $beasiswaMap = [
+            0 => 'NON BEASISWA',
+            1 => 'KADER DALAM',
+            2 => 'KADER MALANG',
+            3 => 'KADER PENGURUS',
+            4 => 'KADER AMAL USAHA',
+            5 => 'KADER JAMAAH',
+            6 => 'KADER PENGABDIAN',
+            7 => 'SAUDARA',
+            8 => 'TAAWWUN',
+            9 => 'ALUMNI',
+        ];
+
+        return response()->streamDownload(function () use ($rows, $beasiswaMap) {
+            $handle = fopen('php://output', 'w');
+            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF)); // UTF-8 BOM
+
+            fputcsv($handle, [
+                'No', 'NIS', 'Nama', 'Kategori Beasiswa', 'Kelas',
+                'Sekolah / Unit', 'Total Tagihan', 'Total Terbayar',
+                'Sisa Tagihan', 'Status', 'Keterangan'
+            ]);
+
+            $no = 1;
+            $totalTagihan = 0;
+            $totalTerbayar = 0;
+            $totalPiutang = 0;
+
+            foreach ($rows as $row) {
+                $paid = (int) ($row['status'] ?? 0) === 1 || (float) ($row['sisa_tagihan'] ?? 0) <= 0;
+                $bisaUjian = (float) ($row['sisa_tagihan'] ?? 0) <= 50000;
+                $code = (int) ($row['is_anak_pegawai'] ?? 0);
+                if ($code < 0 || $code > 9) {
+                    $code = 0;
+                }
+                $beasiswa = trim((string) ($row['beasiswa_label'] ?? $row['kader_label'] ?? ''));
+                if ($beasiswa === '') {
+                    $beasiswa = $beasiswaMap[$code] ?? ('KODE ' . $code);
+                }
+
+                $tagihan = (float) ($row['total_tagihan'] ?? 0);
+                $terbayar = (float) ($row['total_terbayar'] ?? 0);
+                $sisa = (float) ($row['sisa_tagihan'] ?? 0);
+
+                $totalTagihan += $tagihan;
+                $totalTerbayar += $terbayar;
+                $totalPiutang += $sisa;
+
+                fputcsv($handle, [
+                    $no++,
+                    (string) ($row['nis'] ?? $row['nocust'] ?? ''),
+                    strtoupper((string) ($row['nama'] ?? '')),
+                    $beasiswa,
+                    (string) ($row['kelas'] ?? ''),
+                    (string) ($row['sekolah'] ?? ''),
+                    $tagihan,
+                    $terbayar,
+                    $sisa,
+                    $paid ? 'Lunas' : 'Belum Lunas',
+                    $bisaUjian ? 'Bisa Ujian' : 'Belum Bisa Ujian',
+                ]);
+            }
+
+            fputcsv($handle, [
+                '', '', 'TOTAL', '', '', '',
+                $totalTagihan, $totalTerbayar, $totalPiutang, '', ''
+            ]);
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
     public function exportTagihanPdf(Request $request)
     {
         if (session('user.app') !== 'monitoring-kepsek') {
             return redirect()->route('dashboard');
         }
 
+        @set_time_limit(300);
+        @ini_set('memory_limit', '512M');
+
         $rows = $this->fetchSiswaForExport($request);
         if (empty($rows)) {
             return redirect()
-                ->route('kepsek.tagihan')
+                ->route('kepsek.tagihan', $request->query())
                 ->with('error', 'Tidak ada data untuk diexport.');
         }
 
@@ -396,18 +495,27 @@ class MonitoringKepsekController extends Controller
 
     private function fetchSiswaForExport(Request $request): array
     {
+        @set_time_limit(300);
+        @ini_set('memory_limit', '512M');
+
         $filterParams = $this->buildFilterParams($request);
         $allStudents = [];
         $offset = 0;
-        $batchLimit = 1000;
+        $batchLimit = 500;
 
         do {
+            @set_time_limit(120);
             $result = $this->callWs('getSiswaAggregated', array_merge($filterParams, [
                 'limit' => $batchLimit,
                 'offset' => $offset
             ]), 60);
 
             if (($result['status'] ?? 0) !== 200) {
+                Log::warning('fetchSiswaForExport getSiswaAggregated non-200 or failed', [
+                    'status' => $result['status'] ?? null,
+                    'message' => $result['message'] ?? 'Unknown error',
+                    'offset' => $offset,
+                ]);
                 break;
             }
 

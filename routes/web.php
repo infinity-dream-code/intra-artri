@@ -38,6 +38,7 @@ Route::middleware(['check.auth'])->group(function () {
     Route::post('/kepsek/tagihan/detail', [MonitoringKepsekController::class, 'tagihanDetail'])->name('kepsek.tagihan.detail');
     Route::get('/kepsek/tagihan/summary', [MonitoringKepsekController::class, 'tagihanSummary'])->name('kepsek.tagihan.summary');
     Route::get('/kepsek/tagihan/export-excel', [MonitoringKepsekController::class, 'exportTagihanExcel'])->name('kepsek.tagihan.export-excel');
+    Route::get('/kepsek/tagihan/export-csv', [MonitoringKepsekController::class, 'exportTagihanCsv'])->name('kepsek.tagihan.export-csv');
     Route::get('/kepsek/tagihan/export-pdf', [MonitoringKepsekController::class, 'exportTagihanPdf'])->name('kepsek.tagihan.export-pdf');
     Route::get('/kepsek/tagihan/siswa-uang-masuk', [MonitoringKepsekController::class, 'siswaUangMasuk'])->name('kepsek.tagihan.siswa-uang-masuk');
     Route::get('/tagihan/siswa/saldo', [MonitoringKepsekController::class, 'siswaSaldo'])
@@ -50,6 +51,7 @@ Route::middleware(['check.auth'])->group(function () {
     Route::post('/kepsek/tagihan-periode/detail', [TagihanPeriodeController::class, 'tagihanDetail'])->name('kepsek.tagihan-periode.detail');
     Route::get('/kepsek/tagihan-periode/summary', [TagihanPeriodeController::class, 'tagihanSummary'])->name('kepsek.tagihan-periode.summary');
     Route::get('/kepsek/tagihan-periode/export-excel', [TagihanPeriodeController::class, 'exportTagihanExcel'])->name('kepsek.tagihan-periode.export-excel');
+    Route::get('/kepsek/tagihan-periode/export-csv', [TagihanPeriodeController::class, 'exportTagihanCsv'])->name('kepsek.tagihan-periode.export-csv');
     Route::get('/kepsek/tagihan-periode/export-pdf', [TagihanPeriodeController::class, 'exportTagihanPdf'])->name('kepsek.tagihan-periode.export-pdf');
     Route::get('/kepsek/tagihan-periode/siswa/laporan', [TagihanPeriodeController::class, 'exportSiswaLaporan'])->name('kepsek.tagihan-periode.siswa-laporan');
     Route::post('/kepsek/tagihan-periode/siswa/laporan/share', [TagihanPeriodeController::class, 'shareSiswaLaporan'])->name('kepsek.tagihan-periode.siswa-laporan.share');
